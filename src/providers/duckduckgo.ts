@@ -1,5 +1,11 @@
 import { debug, HttpError, get, post } from '../utils';
-import { SearchProvider, SearchResult, SearchOptions, ProviderConfig, DebugOptions } from '../types';
+import {
+  SearchProvider,
+  SearchResult,
+  SearchOptions,
+  ProviderConfig,
+  DebugOptions,
+} from '../types';
 
 /**
  * DuckDuckGo image search result
@@ -106,7 +112,7 @@ function extractVqd(html: string, _keywords: string): string | null {
     const regex = new RegExp(`vqd=['"]([^'"]+)['"]`, 'i');
     const match = html.match(regex);
     return match ? match[1] : null;
-  } catch (error) {
+  } catch (_error) {
     return null;
   }
 }
@@ -121,7 +127,7 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
   // DuckDuckGo doesn't require an API key
   const searchType = config.searchType || 'text';
   const useLite = config.useLite || false;
-  
+
   const baseUrls = {
     text: config.baseUrl || (useLite ? DEFAULT_BASE_URLS.lite : DEFAULT_BASE_URLS.text),
     images: config.baseUrl || DEFAULT_BASE_URLS.images,
@@ -130,8 +136,10 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
 
   // Default headers for requests
   const headers = {
-    'User-Agent': config.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    'Referer': useLite ? 'https://lite.duckduckgo.com/' : 'https://html.duckduckgo.com/',
+    'User-Agent':
+      config.userAgent ||
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    Referer: useLite ? 'https://lite.duckduckgo.com/' : 'https://html.duckduckgo.com/',
     'Sec-Fetch-User': '?1',
   };
 
@@ -139,15 +147,15 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
     name: 'duckduckgo',
     config: { ...config, apiKey: config.apiKey || '' },
     search: async (options: SearchOptions): Promise<SearchResult[]> => {
-      const { 
-        query, 
-        maxResults = 10, 
-        region = 'wt-wt', 
-        safeSearch = 'moderate', 
-        debug: debugOptions, 
+      const {
+        query,
+        maxResults = 10,
+        region = 'wt-wt',
+        safeSearch = 'moderate',
+        debug: debugOptions,
         timeout,
       } = options;
-      
+
       // Cast to access DuckDuckGo-specific options
       const duckOptions = options as DuckDuckGoSearchOptions;
       const effectiveSearchType = duckOptions.searchType || searchType;
@@ -196,11 +204,11 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
    * Performs a text search using DuckDuckGo's HTML interface
    */
   async function searchText(
-    query: string, 
-    region: string, 
+    query: string,
+    region: string,
     safeSearch: string,
     maxResults: number,
-    debugOptions?: DebugOptions, 
+    debugOptions?: DebugOptions,
     timeout?: number
   ): Promise<SearchResult[]> {
     const baseUrl = useLite ? DEFAULT_BASE_URLS.lite : baseUrls.text;
@@ -210,20 +218,18 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
     const payload = {
       q: query,
       b: '',
-      kl: region
+      kl: region,
     };
-    
-    // Perform the search request
-    const response = await post<string>(
-      baseUrl, 
-      payload, 
-      { 
-        headers,
-        timeout,
-      }
-    );
 
-    debug.log(debugOptions, 'DuckDuckGo Text Search raw response received', { length: response.length });
+    // Perform the search request
+    const response = await post<string>(baseUrl, payload, {
+      headers,
+      timeout,
+    });
+
+    debug.log(debugOptions, 'DuckDuckGo Text Search raw response received', {
+      length: response.length,
+    });
 
     // Parse the HTML response
     const results: SearchResult[] = [];
@@ -232,12 +238,17 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
     if (useLite) {
       // Parse lite version HTML
       // This is simplified placeholder implementation - would need HTML parsing library for complete implementation
-      const resultsRegex = /<a href="([^"]+)"[^>]*>([^<]+)<\/a>.*?<td class="result-snippet">(.*?)<\/td>/gs;
+      const resultsRegex =
+        /<a href="([^"]+)"[^>]*>([^<]+)<\/a>.*?<td class="result-snippet">(.*?)<\/td>/gs;
       let match;
-      
+
       while ((match = resultsRegex.exec(response)) !== null && results.length < maxResults) {
         const href = match[1];
-        if (!cache.has(href) && !href.includes('google.com/search') && !href.includes('duckduckgo.com/y.js')) {
+        if (
+          !cache.has(href) &&
+          !href.includes('google.com/search') &&
+          !href.includes('duckduckgo.com/y.js')
+        ) {
           cache.add(href);
           results.push({
             url: normalizeUrl(href),
@@ -249,12 +260,17 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
       }
     } else {
       // Parse standard HTML version
-      const resultsRegex = /<h2.*?><a .*?href="([^"]+)"[^>]*>(.*?)<\/a><\/h2>.*?<a .*?>(.*?)<\/a>/gs;
+      const resultsRegex =
+        /<h2.*?><a .*?href="([^"]+)"[^>]*>(.*?)<\/a><\/h2>.*?<a .*?>(.*?)<\/a>/gs;
       let match;
-      
+
       while ((match = resultsRegex.exec(response)) !== null && results.length < maxResults) {
         const href = match[1];
-        if (!cache.has(href) && !href.includes('google.com/search') && !href.includes('duckduckgo.com/y.js')) {
+        if (
+          !cache.has(href) &&
+          !href.includes('google.com/search') &&
+          !href.includes('duckduckgo.com/y.js')
+        ) {
           cache.add(href);
           results.push({
             url: normalizeUrl(href),
@@ -278,11 +294,11 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
    * Performs an image search using DuckDuckGo's API
    */
   async function searchImages(
-    query: string, 
-    region: string, 
+    query: string,
+    region: string,
     safeSearch: string,
     maxResults: number,
-    debugOptions?: DebugOptions, 
+    debugOptions?: DebugOptions,
     timeout?: number
   ): Promise<SearchResult[]> {
     debug.logRequest(debugOptions, 'DuckDuckGo Images Search request', { query, region });
@@ -291,11 +307,11 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
     const initialResponse = await get<string>('https://duckduckgo.com', {
       headers: {
         ...headers,
-        'Referer': 'https://duckduckgo.com/',
+        Referer: 'https://duckduckgo.com/',
       },
       timeout,
     });
-    
+
     const vqd = extractVqd(initialResponse, query);
     if (!vqd) {
       throw new Error('Failed to extract vqd parameter for DuckDuckGo Images Search');
@@ -303,9 +319,9 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
 
     // Map safesearch to DuckDuckGo's format
     const safesearchMapping: Record<string, string> = {
-      'on': '1',
-      'moderate': '1',
-      'off': '-1'
+      on: '1',
+      moderate: '1',
+      off: '-1',
     };
 
     // Get the URL with parameters
@@ -320,7 +336,7 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
     const response = await get<DuckDuckGoImagesResponse>(searchUrl.toString(), {
       headers: {
         ...headers,
-        'Referer': 'https://duckduckgo.com/',
+        Referer: 'https://duckduckgo.com/',
       },
       timeout,
     });
@@ -355,11 +371,11 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
    * Performs a news search using DuckDuckGo's API
    */
   async function searchNews(
-    query: string, 
-    region: string, 
+    query: string,
+    region: string,
     safeSearch: string,
     maxResults: number,
-    debugOptions?: DebugOptions, 
+    debugOptions?: DebugOptions,
     timeout?: number
   ): Promise<SearchResult[]> {
     debug.logRequest(debugOptions, 'DuckDuckGo News Search request', { query, region });
@@ -368,11 +384,11 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
     const initialResponse = await get<string>('https://duckduckgo.com', {
       headers: {
         ...headers,
-        'Referer': 'https://duckduckgo.com/',
+        Referer: 'https://duckduckgo.com/',
       },
       timeout,
     });
-    
+
     const vqd = extractVqd(initialResponse, query);
     if (!vqd) {
       throw new Error('Failed to extract vqd parameter for DuckDuckGo News Search');
@@ -380,9 +396,9 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
 
     // Map safesearch to DuckDuckGo's format
     const safesearchMapping: Record<string, string> = {
-      'on': '1',
-      'moderate': '-1',
-      'off': '-2'
+      on: '1',
+      moderate: '-1',
+      off: '-2',
     };
 
     // Get the URL with parameters
@@ -452,6 +468,8 @@ export const duckduckgo = {
    * This is a placeholder and will be overridden by `configure`
    */
   search: async (_options: SearchOptions): Promise<SearchResult[]> => {
-    throw new Error('DuckDuckGo provider must be configured before use. Call duckduckgo.configure() first, even with empty options if defaults are fine.');
-  }
+    throw new Error(
+      'DuckDuckGo provider must be configured before use. Call duckduckgo.configure() first, even with empty options if defaults are fine.'
+    );
+  },
 };

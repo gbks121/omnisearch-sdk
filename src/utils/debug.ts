@@ -13,7 +13,7 @@ const defaultDebugOptions: DebugOptions = {
     } else {
       console.log(`[@plust/search-sdk] ${message}`);
     }
-  }
+  },
 };
 
 /**
@@ -22,7 +22,7 @@ const defaultDebugOptions: DebugOptions = {
 export const debug = {
   /**
    * Log a message if debugging is enabled
-   * 
+   *
    * @param options Debug options from search request
    * @param message Message to log
    * @param data Optional data to log
@@ -39,7 +39,7 @@ export const debug = {
 
   /**
    * Log request details if request logging is enabled
-   * 
+   *
    * @param options Debug options from search request
    * @param message Message to log
    * @param data Request details to log
@@ -56,7 +56,7 @@ export const debug = {
 
   /**
    * Log response details if response logging is enabled
-   * 
+   *
    * @param options Debug options from search request
    * @param message Message to log
    * @param data Response details to log
@@ -69,5 +69,5 @@ export const debug = {
         logger(`RESPONSE: ${message}`, data);
       }
     }
-  }
+  },
 };

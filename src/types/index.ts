@@ -8,6 +8,8 @@ export interface SearchResult {
   title: string;
   /** Snippet/description of the web page */
   snippet?: string;
+  /** Full content or combined excerpts for fuller text */
+  content?: string;
   /** The source website domain */
   domain?: string;
   /** When the result was published or last updated */

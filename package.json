@@ -9,8 +9,10 @@
   ],
   "scripts": {
     "build": "tsc",
-    "lint": "eslint . --ext .ts",
-    "format": "prettier --write \"src/**/*.ts\"",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"src/**/*.ts\" \"src/**/*.js\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"src/**/*.js\"",
     "prepublishOnly": "npm run build"
   },
   "repository": {
@@ -34,17 +36,19 @@
   "author": "",
   "license": "MIT",
   "devDependencies": {
-    "@types/node": "^18.0.0",
+    "@types/node": "^25.0.0",
     "@types/xml2js": "^0.4.14",
-    "@typescript-eslint/eslint-plugin": "^5.30.0",
-    "@typescript-eslint/parser": "^5.30.0",
-    "eslint": "^8.18.0",
-    "prettier": "^2.7.1",
+    "@typescript-eslint/eslint-plugin": "^8.53.1",
+    "@typescript-eslint/parser": "^8.53.1",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "prettier": "^3.8.1",
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "cross-fetch": "^3.1.5",
-    "fastmcp": "^3.19.2",
+    "cross-fetch": "^4.1.0",
+    "fastmcp": "^3.29.0",
     "xml2js": "^0.6.2"
   }
 }

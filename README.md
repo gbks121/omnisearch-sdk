@@ -20,7 +20,7 @@ import { google, webSearch } from '@plust/search-sdk';
 // Configure the Google search provider with your API key and Search Engine ID
 const configuredGoogle = google.configure({
   apiKey: 'YOUR_GOOGLE_API_KEY',
-  cx: 'YOUR_SEARCH_ENGINE_ID'
+  cx: 'YOUR_SEARCH_ENGINE_ID',
 });
 
 // Search using the configured provider
@@ -28,9 +28,9 @@ async function search() {
   const results = await webSearch({
     query: 'TypeScript SDK',
     maxResults: 5,
-    provider: [configuredGoogle]  // Provider is now an array
+    provider: [configuredGoogle], // Provider is now an array
   });
-  
+
   console.log(results);
 }
 
@@ -46,11 +46,11 @@ import { google, brave, webSearch } from '@plust/search-sdk';
 
 const googleProvider = google.configure({
   apiKey: 'YOUR_GOOGLE_API_KEY',
-  cx: 'YOUR_SEARCH_ENGINE_ID'
+  cx: 'YOUR_SEARCH_ENGINE_ID',
 });
 
 const braveProvider = brave.configure({
-  apiKey: 'YOUR_BRAVE_API_KEY'
+  apiKey: 'YOUR_BRAVE_API_KEY',
 });
 
 // Search with multiple providers in parallel
@@ -58,9 +58,9 @@ async function search() {
   const results = await webSearch({
     query: 'TypeScript SDK',
     maxResults: 10,
-    provider: [googleProvider, braveProvider]  // Multiple providers
+    provider: [googleProvider, braveProvider], // Multiple providers
   });
-  
+
   // Results from all successful providers are combined
   console.log(`Found ${results.length} total results`);
 }
@@ -69,6 +69,7 @@ search();
 ```
 
 **Benefits of using multiple providers:**
+
 - **Fail-soft behavior**: If one provider fails, others can still return results
 - **Better coverage**: Combine results from multiple sources
 - **Redundancy**: Protection against API downtime or rate limits
@@ -96,6 +97,7 @@ The SDK currently supports the following search APIs:
 - [Arxiv](https://arxiv.org/)
 - [DuckDuckGo](https://duckduckgo.com/)
 - [Perplexity](https://docs.perplexity.ai/)
+- [Parallel](https://docs.parallel.ai/)
 
 ## Provider Configuration
 
@@ -108,13 +110,13 @@ import { google, webSearch } from '@plust/search-sdk';
 
 const googleProvider = google.configure({
   apiKey: 'YOUR_GOOGLE_API_KEY',
-  cx: 'YOUR_SEARCH_ENGINE_ID'
+  cx: 'YOUR_SEARCH_ENGINE_ID',
 });
 
 const results = await webSearch({
   query: 'React hooks tutorial',
   maxResults: 10,
-  provider: [googleProvider]
+  provider: [googleProvider],
 });
 ```
 
@@ -125,30 +127,46 @@ import { serpapi, webSearch } from '@plust/search-sdk';
 
 const serpProvider = serpapi.configure({
   apiKey: 'YOUR_SERPAPI_KEY',
-  engine: 'google' // Optional, defaults to 'google'
+  engine: 'google', // Optional, defaults to 'google'
 });
 
 const results = await webSearch({
   query: 'TypeScript best practices',
   maxResults: 10,
-  provider: [serpProvider]
+  provider: [serpProvider],
 });
 ```
 
 ### Brave Search
 
+Brave Search supports multiple search types: Web & News.
+
 ```typescript
 import { brave, webSearch } from '@plust/search-sdk';
 
-const braveProvider = brave.configure({
-  apiKey: 'YOUR_BRAVE_API_KEY'
+// Default web search
+const webProvider = brave.configure({
+  apiKey: 'YOUR_BRAVE_API_KEY',
+  searchType: 'web', // Optional, defaults to 'web'
 });
 
-const results = await webSearch({
+const webResults = await webSearch({
   query: 'privacy-focused browsers',
   maxResults: 10,
   safeSearch: 'moderate',
-  provider: [braveProvider]
+  provider: [webProvider],
+});
+
+// News search
+const newsProvider = brave.configure({
+  apiKey: 'YOUR_BRAVE_API_KEY',
+  searchType: 'news',
+});
+
+const newsResults = await webSearch({
+  query: 'technology trends',
+  maxResults: 10,
+  provider: [newsProvider],
 });
 ```
 
@@ -160,12 +178,12 @@ import { exa, webSearch } from '@plust/search-sdk';
 const exaProvider = exa.configure({
   apiKey: 'YOUR_EXA_API_KEY',
   model: 'keyword', // Optional, defaults to 'keyword'
-  includeContents: true // Optional, defaults to false
+  includeContents: true, // Optional, defaults to false
 });
 
 const results = await webSearch({
   query: 'machine learning papers',
-  provider: [exaProvider]
+  provider: [exaProvider],
 });
 ```
 
@@ -177,13 +195,13 @@ import { tavily, webSearch } from '@plust/search-sdk';
 const tavilyProvider = tavily.configure({
   apiKey: 'YOUR_TAVILY_API_KEY',
   searchDepth: 'comprehensive', // Optional, defaults to 'basic'
-  includeAnswer: true // Optional, defaults to false
+  includeAnswer: true, // Optional, defaults to false
 });
 
 const results = await webSearch({
   query: 'climate change evidence',
   maxResults: 15,
-  provider: [tavilyProvider]
+  provider: [tavilyProvider],
 });
 ```
 
@@ -197,14 +215,14 @@ const searxngProvider = searxng.configure({
   additionalParams: {
     // Optional additional parameters for SearXNG
     categories: 'general',
-    engines: 'google,brave,duckduckgo'
+    engines: 'google,brave,duckduckgo',
   },
-  apiKey: '' // Not needed for most SearXNG instances
+  apiKey: '', // Not needed for most SearXNG instances
 });
 
 const results = await webSearch({
   query: 'open source software',
-  provider: [searxngProvider]
+  provider: [searxngProvider],
 });
 ```
 
@@ -216,15 +234,15 @@ import { duckduckgo, webSearch } from '@plust/search-sdk';
 // DuckDuckGo doesn't require an API key, but you can configure other options
 const duckduckgoProvider = duckduckgo.configure({
   searchType: 'text', // Optional: 'text', 'images', or 'news'
-  useLite: false,     // Optional: use lite version for lower bandwidth
-  region: 'wt-wt'     // Optional: region code
+  useLite: false, // Optional: use lite version for lower bandwidth
+  region: 'wt-wt', // Optional: region code
 });
 
 // Text search
 const textResults = await webSearch({
   query: 'privacy focused search',
   maxResults: 10,
-  provider: [duckduckgoProvider]
+  provider: [duckduckgoProvider],
 });
 
 // Image search
@@ -232,7 +250,7 @@ const imageProvider = duckduckgo.configure({ searchType: 'images' });
 const imageResults = await webSearch({
   query: 'landscape photography',
   maxResults: 10,
-  provider: [imageProvider]
+  provider: [imageProvider],
 });
 
 // News search
@@ -240,7 +258,7 @@ const newsProvider = duckduckgo.configure({ searchType: 'news' });
 const newsResults = await webSearch({
   query: 'latest technology',
   maxResults: 10,
-  provider: [newsProvider]
+  provider: [newsProvider],
 });
 ```
 
@@ -254,15 +272,15 @@ import { arxiv, webSearch } from '@plust/search-sdk';
 // Arxiv doesn't require an API key, but you can configure other options.
 const arxivProvider = arxiv.configure({
   sortBy: 'relevance', // Optional: 'relevance', 'lastUpdatedDate', 'submittedDate'
-  sortOrder: 'descending' // Optional: 'ascending', 'descending'
+  sortOrder: 'descending', // Optional: 'ascending', 'descending'
 });
 
 const results = await webSearch({
   query: 'cat:cs.AI AND ti:transformer', // Example: Search for "transformer" in title within Computer Science AI category
   // Alternatively, search by ID list:
-  // idList: '2305.12345v1,2203.01234v2', 
+  // idList: '2305.12345v1,2203.01234v2',
   provider: [arxivProvider],
-  maxResults: 5
+  maxResults: 5,
 });
 ```
 
@@ -290,24 +308,49 @@ const results = await webSearch({
 });
 ```
 
+### Parallel
+
+```typescript
+import { parallel, webSearch } from '@plust/search-sdk';
+
+const parallelProvider = parallel.configure({
+  apiKey: 'YOUR_PARALLEL_API_KEY',
+  mode: 'one-shot', // Optional: 'one-shot' for comprehensive results (default) or 'agentic' for token-efficient results
+  maxResults: 10, // Optional: maximum number of results (may be limited by processor)
+  includeDomains: ['wikipedia.org', '.edu'], // Optional: list of domains to restrict results to
+  excludeDomains: ['reddit.com', '.ai'], // Optional: list of domains to exclude from results
+  afterDate: '2024-01-01', // Optional: filter results after this date (YYYY-MM-DD format)
+  beforeDate: '2024-12-31', // Optional: filter results before this date (YYYY-MM-DD format)
+  maxCharsPerResult: 1000, // Optional: maximum characters per excerpt
+  excerptCount: 3, // Optional: number of excerpts per result
+  fetchStrategy: 'cached', // Optional: 'cached' for faster results or 'live' for fresher content
+});
+
+const results = await webSearch({
+  query: 'What were the major breakthroughs in quantum computing in 2024?',
+  maxResults: 10,
+  provider: [parallelProvider],
+});
+```
+
 ## Common Search Options
 
 The `webSearch` function accepts these standard options across all providers:
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `query` | string | The search query text. For Arxiv, this can be a complex query using field prefixes (e.g., `au:del_maestro AND ti:checkerboard`). |
-| `idList` | string | (Arxiv specific) A comma-delimited list of Arxiv IDs to fetch. |
-| `maxResults` | number | Maximum number of results to return. |
-| `language` | string | Language code for results (e.g., 'en') |
-| `region` | string | Country/region code (e.g., 'US'). For DuckDuckGo, use format like 'wt-wt', 'us-en'. |
-| `safeSearch` | 'off' \| 'moderate' \| 'strict' | Content filtering level (Not applicable to Arxiv). For DuckDuckGo, 'moderate' is default. |
-| `page` | number | Result page number (for pagination). Arxiv uses `start` (offset) instead. |
-| `start` | number | (Arxiv specific) The starting index for results (pagination offset). |
-| `sortBy` | 'relevance' \| 'lastUpdatedDate' \| 'submittedDate' | (Arxiv specific) Sort order for results. |
-| `sortOrder` | 'ascending' \| 'descending' | (Arxiv specific) Sort direction. |
-| `searchType` | 'text' \| 'images' \| 'news' | (DuckDuckGo specific) The type of search to perform. |
-| `timeout` | number | Request timeout in milliseconds. |
+| Option       | Type                                                | Description                                                                                                                      |
+| ------------ | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `query`      | string                                              | The search query text. For Arxiv, this can be a complex query using field prefixes (e.g., `au:del_maestro AND ti:checkerboard`). |
+| `idList`     | string                                              | (Arxiv specific) A comma-delimited list of Arxiv IDs to fetch.                                                                   |
+| `maxResults` | number                                              | Maximum number of results to return.                                                                                             |
+| `language`   | string                                              | Language code for results (e.g., 'en')                                                                                           |
+| `region`     | string                                              | Country/region code (e.g., 'US'). For DuckDuckGo, use format like 'wt-wt', 'us-en'.                                              |
+| `safeSearch` | 'off' \| 'moderate' \| 'strict'                     | Content filtering level (Not applicable to Arxiv). For DuckDuckGo, 'moderate' is default.                                        |
+| `page`       | number                                              | Result page number (for pagination). Arxiv uses `start` (offset) instead.                                                        |
+| `start`      | number                                              | (Arxiv specific) The starting index for results (pagination offset).                                                             |
+| `sortBy`     | 'relevance' \| 'lastUpdatedDate' \| 'submittedDate' | (Arxiv specific) Sort order for results.                                                                                         |
+| `sortOrder`  | 'ascending' \| 'descending'                         | (Arxiv specific) Sort direction.                                                                                                 |
+| `searchType` | 'text' \| 'images' \| 'news'                        | (DuckDuckGo specific) The type of search to perform.                                                                             |
+| `timeout`    | number                                              | Request timeout in milliseconds.                                                                                                 |
 
 ## Search Result Format
 
@@ -315,13 +358,13 @@ All providers return results in this standardized format:
 
 ```typescript
 interface SearchResult {
-  url: string;         // The URL of the search result
-  title: string;       // Title of the web page
-  snippet?: string;    // Brief description or excerpt
-  domain?: string;     // The source website domain
+  url: string; // The URL of the search result
+  title: string; // Title of the web page
+  snippet?: string; // Brief description or excerpt
+  domain?: string; // The source website domain
   publishedDate?: string; // When the content was published
-  provider?: string;   // The search provider that returned this result
-  raw?: unknown;       // Raw provider-specific data
+  provider?: string; // The search provider that returned this result
+  raw?: unknown; // Raw provider-specific data
 }
 ```
 
@@ -334,13 +377,13 @@ import { google, webSearch } from '@plust/search-sdk';
 
 const googleProvider = google.configure({
   apiKey: 'YOUR_GOOGLE_API_KEY',
-  cx: 'YOUR_SEARCH_ENGINE_ID'
+  cx: 'YOUR_SEARCH_ENGINE_ID',
 });
 
 const results = await webSearch({
   query: 'TypeScript SDK',
   provider: [googleProvider],
-  debug: { enabled: true, logRequests: true, logResponses: true }
+  debug: { enabled: true, logRequests: true, logResponses: true },
 });
 ```
 
@@ -366,11 +409,11 @@ import { google, brave, asMcp } from '@plust/search-sdk';
 // Configure your search providers
 const googleProvider = google.configure({
   apiKey: 'YOUR_GOOGLE_API_KEY',
-  cx: 'YOUR_SEARCH_ENGINE_ID'
+  cx: 'YOUR_SEARCH_ENGINE_ID',
 });
 
 const braveProvider = brave.configure({
-  apiKey: 'YOUR_BRAVE_API_KEY'
+  apiKey: 'YOUR_BRAVE_API_KEY',
 });
 
 // Create MCP server configuration
@@ -427,6 +470,7 @@ When running as an MCP server, the following tool is exposed:
 Performs a web search across all configured providers.
 
 **Parameters:**
+
 - `query` (string, required): The search query
 - `maxResults` (number, optional): Maximum number of results to return
 - `region` (string, optional): Country code for regional results (e.g., "US")
@@ -465,7 +509,7 @@ import { asMcp, google } from '@plust/search-sdk';
 
 const googleProvider = google.configure({
   apiKey: 'YOUR_GOOGLE_API_KEY',
-  cx: 'YOUR_SEARCH_ENGINE_ID'
+  cx: 'YOUR_SEARCH_ENGINE_ID',
 });
 
 const mcpServer = await connectToMCPServer(asMcp([googleProvider]));
@@ -473,7 +517,7 @@ const mcpServer = await connectToMCPServer(asMcp([googleProvider]));
 // The webSearch tool is now available to your AI agent
 const results = await mcpServer.callTool('webSearch', {
   query: 'latest AI developments',
-  maxResults: 5
+  maxResults: 5,
 });
 ```
 
@@ -510,7 +554,7 @@ const results = await webSearch({
   region: 'US',
   safeSearch: 'moderate',
   page: 1,
-  provider: [googleProvider]
+  provider: [googleProvider],
 });
 ```
 

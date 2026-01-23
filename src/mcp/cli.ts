@@ -35,11 +35,13 @@ async function main() {
     }
 
     // Use the factory to create full provider instances from the config
-    const hydratedProviders: SearchProvider[] = providerConfigs.map((p: { name: keyof typeof providerFactory; config: any }) => {
-      const create = providerFactory[p.name];
-      if (!create) throw new Error(`Unknown provider specified in config: ${p.name}`);
-      return create(p.config);
-    });
+    const hydratedProviders: SearchProvider[] = providerConfigs.map(
+      (p: { name: keyof typeof providerFactory; config: Record<string, unknown> }) => {
+        const create = providerFactory[p.name];
+        if (!create) throw new Error(`Unknown provider specified in config: ${p.name}`);
+        return create(p.config as any);
+      }
+    );
 
     const server = new FastMCP({
       name: 'Search SDK MCP Server',
@@ -53,9 +55,15 @@ async function main() {
       parameters: z.object({
         query: z.string().describe('The search query string'),
         maxResults: z.number().optional().describe('The maximum number of results to return'),
-        region: z.string().optional().describe('The country code to tailor results for (e.g., "US")'),
+        region: z
+          .string()
+          .optional()
+          .describe('The country code to tailor results for (e.g., "US")'),
         language: z.string().optional().describe('The language code for results (e.g., "en-US")'),
-        idList: z.string().optional().describe('A comma-separated list of Arxiv document IDs (for Arxiv provider only)'),
+        idList: z
+          .string()
+          .optional()
+          .describe('A comma-separated list of Arxiv document IDs (for Arxiv provider only)'),
       }),
       execute: async (args) => {
         const results = await webSearch({
@@ -67,17 +75,16 @@ async function main() {
     });
 
     console.log(`Starting @plust/search-sdk MCP server...`);
-    console.log(`Configured providers: ${hydratedProviders.map(p => p.name).join(', ')}`);
+    console.log(`Configured providers: ${hydratedProviders.map((p) => p.name).join(', ')}`);
 
     // Start the MCP server with stdio transport
     await server.start({
       transportType: 'stdio',
     });
-
   } catch (error) {
     console.error('Failed to start MCP server:', error);
     process.exit(1);
   }
 }
 
-main();
+void main();

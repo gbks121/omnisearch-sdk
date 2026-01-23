@@ -4,7 +4,7 @@ import { HttpError } from './utils/http';
 
 /**
  * Get provider-specific troubleshooting information based on error and status code
- * 
+ *
  * @param providerName Name of the search provider
  * @param error The error that occurred
  * @param statusCode HTTP status code if available
@@ -12,64 +12,78 @@ import { HttpError } from './utils/http';
  */
 function getTroubleshootingInfo(providerName: string, error: Error, statusCode?: number): string {
   let suggestions = '';
-  
+
   // Common troubleshooting steps based on status code
   if (statusCode) {
     if (statusCode === 401 || statusCode === 403) {
-      suggestions = 'This is likely an authentication issue. Check your API key and make sure it\'s valid and has the correct permissions.';
+      suggestions =
+        "This is likely an authentication issue. Check your API key and make sure it's valid and has the correct permissions.";
     } else if (statusCode === 400) {
-      suggestions = 'This is likely due to invalid request parameters. Check your query and other search options.';
+      suggestions =
+        'This is likely due to invalid request parameters. Check your query and other search options.';
     } else if (statusCode === 429) {
-      suggestions = 'You\'ve exceeded the rate limit for this API. Try again later or reduce your request frequency.';
+      suggestions =
+        "You've exceeded the rate limit for this API. Try again later or reduce your request frequency.";
     } else if (statusCode >= 500) {
       suggestions = 'The search provider is experiencing server issues. Try again later.';
     }
   }
-  
+
   // If the error message contains [object Object], try to improve the formatting
   if (error.message.includes('[object Object]')) {
-    suggestions += '\n\nThe error response contains complex data that wasn\'t properly formatted. ' +
+    suggestions +=
+      "\n\nThe error response contains complex data that wasn't properly formatted. " +
       'Try enabling debug mode to see the full response details: { debug: { enabled: true, logResponses: true } }';
   }
-  
+
   // Provider-specific troubleshooting
   switch (providerName) {
     case 'google':
       if (error.message.includes('API key')) {
-        suggestions = 'Make sure your Google API key is valid and has the Custom Search API enabled. Also check if your Search Engine ID (cx) is correct.';
+        suggestions =
+          'Make sure your Google API key is valid and has the Custom Search API enabled. Also check if your Search Engine ID (cx) is correct.';
       } else if (error.message.includes('quota')) {
-        suggestions = 'You\'ve exceeded your Google Custom Search API quota. Check your Google Cloud Console for quota information.';
+        suggestions =
+          "You've exceeded your Google Custom Search API quota. Check your Google Cloud Console for quota information.";
       }
       break;
     case 'serpapi':
       if (error.message.includes('apiKey')) {
-        suggestions = 'Check that your SerpAPI key is valid. Verify that you have enough credits remaining in your SerpAPI account.';
+        suggestions =
+          'Check that your SerpAPI key is valid. Verify that you have enough credits remaining in your SerpAPI account.';
       }
       break;
     case 'brave':
       if (error.message.includes('token')) {
-        suggestions = 'Ensure your Brave Search API token is valid. Check your subscription status in the Brave Developer Hub.';
+        suggestions =
+          'Ensure your Brave Search API token is valid. Check your subscription status in the Brave Developer Hub.';
       }
       break;
     case 'searxng':
       if (error.message.includes('not found') || statusCode === 404) {
-        suggestions = 'Check if your SearXNG instance URL is correct and that the server is running. Verify the format of your search URL.';
+        suggestions =
+          'Check if your SearXNG instance URL is correct and that the server is running. Verify the format of your search URL.';
       }
       break;
     case 'duckduckgo':
       if (error.message.includes('vqd')) {
-        suggestions = 'Failed to extract the vqd parameter from DuckDuckGo. This may be due to temporary API changes or rate limiting. Try again later or consider using a different search type.';
+        suggestions =
+          'Failed to extract the vqd parameter from DuckDuckGo. This may be due to temporary API changes or rate limiting. Try again later or consider using a different search type.';
       } else if (statusCode === 429 || error.message.includes('rate')) {
-        suggestions = 'You may be making too many requests to DuckDuckGo. Try adding a delay between requests or reduce your request frequency.';
+        suggestions =
+          'You may be making too many requests to DuckDuckGo. Try adding a delay between requests or reduce your request frequency.';
       }
       break;
     case 'perplexity':
       if (error.message.includes('api_key') || error.message.includes('apiKey')) {
-        suggestions = 'Check your Perplexity API key. Make sure it\'s valid and has the correct permissions for the Search API.';
+        suggestions =
+          "Check your Perplexity API key. Make sure it's valid and has the correct permissions for the Search API.";
       } else if (statusCode === 429) {
-        suggestions = 'You have exceeded your Perplexity API quota or rate limits. Check your usage in your Perplexity account dashboard.';
+        suggestions =
+          'You have exceeded your Perplexity API quota or rate limits. Check your usage in your Perplexity account dashboard.';
       } else if (statusCode === 400) {
-        suggestions = 'Check your search parameters for the Perplexity API. Ensure max_results is between 1-20, and date formats are correct (MM/DD/YYYY).';
+        suggestions =
+          'Check your search parameters for the Perplexity API. Ensure max_results is between 1-20, and date formats are correct (MM/DD/YYYY).';
       }
       break;
     default:
@@ -78,7 +92,7 @@ function getTroubleshootingInfo(providerName: string, error: Error, statusCode?:
         suggestions = `Check your ${providerName} API credentials and make sure your search request is valid.`;
       }
   }
-  
+
   return suggestions;
 }
 
@@ -97,17 +111,23 @@ export async function webSearch(options: WebSearchOptions): Promise<SearchResult
   }
 
   // Validate that at least one provider supports the search query
-  const hasArxivProvider = provider.some(p => p.name === 'arxiv');
+  const hasArxivProvider = provider.some((p) => p.name === 'arxiv');
   if (!options.query && !(hasArxivProvider && options.idList)) {
     throw new Error('A search query or ID list (for Arxiv) is required');
   }
 
   // Log search parameters if debugging is enabled
-  debug.log(debugOptions, `Performing search with ${provider.length} provider(s): ${provider.map(p => p.name).join(', ')}`, {
-    query: options.query,
-    maxResults: options.maxResults,
-    providers: provider.map(p => p.name),
-  });
+  debug.log(
+    debugOptions,
+    `Performing search with ${provider.length} provider(s): ${provider
+      .map((p) => p.name)
+      .join(', ')}`,
+    {
+      query: options.query,
+      maxResults: options.maxResults,
+      providers: provider.map((p) => p.name),
+    }
+  );
 
   // Execute searches in parallel with Promise.allSettled for fail-soft behavior
   const searchPromises = provider.map(async (p) => {
@@ -133,9 +153,11 @@ export async function webSearch(options: WebSearchOptions): Promise<SearchResult
       }
 
       // Get troubleshooting information
-      const troubleshooting = getTroubleshootingInfo(p.name,
+      const troubleshooting = getTroubleshootingInfo(
+        p.name,
         error instanceof Error ? error : new Error(String(error)),
-        statusCode);
+        statusCode
+      );
 
       // Create a detailed error message
       let detailedErrorMessage = `Search with provider '${p.name}' failed: ${errorMessage}`;
@@ -153,7 +175,7 @@ export async function webSearch(options: WebSearchOptions): Promise<SearchResult
         troubleshooting,
         provider: p.name,
         query: options.query,
-        rawError: error instanceof HttpError ? error.parsedResponseBody : undefined
+        rawError: error instanceof HttpError ? error.parsedResponseBody : undefined,
       });
 
       return { provider: p.name, results: [], error: detailedError };
@@ -177,11 +199,17 @@ export async function webSearch(options: WebSearchOptions): Promise<SearchResult
   }
 
   // Log summary
-  debug.log(debugOptions, `Search complete: ${allResults.length} total results from ${searchResults.filter(r => !r.error).length}/${provider.length} providers`, {
-    totalResults: allResults.length,
-    successfulProviders: searchResults.filter(r => !r.error).length,
-    failedProviders: errors.length,
-  });
+  debug.log(
+    debugOptions,
+    `Search complete: ${allResults.length} total results from ${
+      searchResults.filter((r) => !r.error).length
+    }/${provider.length} providers`,
+    {
+      totalResults: allResults.length,
+      successfulProviders: searchResults.filter((r) => !r.error).length,
+      failedProviders: errors.length,
+    }
+  );
 
   // If all providers failed, throw an error with all the error messages
   if (allResults.length === 0 && errors.length > 0) {

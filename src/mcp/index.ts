@@ -1,4 +1,5 @@
 import { SearchProvider } from '../types';
+import * as path from 'path';
 
 export interface McpProcessConfig {
   command: string;
@@ -21,7 +22,7 @@ export function asMcp(providers: SearchProvider[]): McpProcessConfig {
 
   // Serialize provider configurations to pass via an environment variable
   const serializableConfig = {
-    providers: providers.map(p => ({
+    providers: providers.map((p) => ({
       name: p.name,
       config: p.config,
     })),
@@ -29,7 +30,6 @@ export function asMcp(providers: SearchProvider[]): McpProcessConfig {
 
   // For local development, point directly to the built CLI file
   // In production, this would use npx with the published package
-  const path = require('path');
   const cliPath = path.join(__dirname, 'cli.js');
 
   return {

@@ -7,3 +7,4 @@ export { searxng, createSearxNGProvider, SearxNGConfig } from './searxng';
 export { arxiv, createArxivProvider, ArxivConfig } from './arxiv';
 export { duckduckgo, createDuckDuckGoProvider, DuckDuckGoConfig } from './duckduckgo';
 export { perplexity, createPerplexityProvider, PerplexityConfig } from './perplexity';
+export { parallel, createParallelProvider, ParallelConfig } from './parallel';

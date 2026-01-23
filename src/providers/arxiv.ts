@@ -89,15 +89,25 @@ function getText(value: string | { _text: string } | undefined): string {
  * @param config Configuration options for Arxiv
  * @returns A configured Arxiv provider
  */
-export function createArxivProvider(config: ArxivConfig = {}): SearchProvider { // Add default empty object for config
+export function createArxivProvider(config: ArxivConfig = {}): SearchProvider {
+  // Add default empty object for config
   const baseUrl = config.baseUrl || DEFAULT_BASE_URL;
 
   return {
     name: 'arxiv',
     // Ensure apiKey is explicitly set or handled if optional in ProviderConfig
-    config: { ...config, apiKey: config.apiKey || '' }, 
+    config: { ...config, apiKey: config.apiKey || '' },
     search: async (options: SearchOptions): Promise<SearchResult[]> => {
-      const { query, idList, maxResults = 10, start = 0, sortBy = 'relevance', sortOrder = 'descending', debug: debugOptions, timeout } = options;
+      const {
+        query,
+        idList,
+        maxResults = 10,
+        start = 0,
+        sortBy = 'relevance',
+        sortOrder = 'descending',
+        debug: debugOptions,
+        timeout,
+      } = options;
 
       if (!query && !idList) {
         throw new Error('Arxiv search requires either a "query" or an "idList".');
@@ -123,21 +133,23 @@ export function createArxivProvider(config: ArxivConfig = {}): SearchProvider { 
 
       try {
         const responseXmlText = await get<string>(url, { timeout });
-        debug.log(debugOptions, 'Arxiv raw XML response received', { length: responseXmlText.length });
+        debug.log(debugOptions, 'Arxiv raw XML response received', {
+          length: responseXmlText.length,
+        });
 
         const parsedXml: ArxivParsedXml = await parseStringPromise(responseXmlText, {
           explicitArray: false, // Makes accessing single elements easier
-          explicitRoot: false,   // Removes the root 'feed' element if it's the only one
-          tagNameProcessors: [key => key.replace('arxiv:', '')] // Remove arxiv: prefix if present
+          explicitRoot: false, // Removes the root 'feed' element if it's the only one
+          tagNameProcessors: [(key) => key.replace('arxiv:', '')], // Remove arxiv: prefix if present
         });
-        
+
         debug.log(debugOptions, 'Arxiv XML parsed successfully');
 
         if (!parsedXml || !parsedXml.feed) {
           debug.log(debugOptions, 'Arxiv parsed data is empty or malformed', { parsedXml });
           return [];
         }
-        
+
         const feed = parsedXml.feed;
         const entries = feed.entry ? (Array.isArray(feed.entry) ? feed.entry : [feed.entry]) : [];
 
@@ -146,12 +158,14 @@ export function createArxivProvider(config: ArxivConfig = {}): SearchProvider { 
           return [];
         }
 
-        const results: SearchResult[] = entries.map(entry => {
+        const results: SearchResult[] = entries.map((entry) => {
           let pdfLink = '';
           const links = entry.link ? (Array.isArray(entry.link) ? entry.link : [entry.link]) : [];
-          const alternateLink = links.find(l => l._attributes.rel === 'alternate' && l._attributes.type === 'text/html');
-          const pdfLinkObj = links.find(l => l._attributes.title === 'pdf');
-          
+          const alternateLink = links.find(
+            (l) => l._attributes.rel === 'alternate' && l._attributes.type === 'text/html'
+          );
+          const pdfLinkObj = links.find((l) => l._attributes.title === 'pdf');
+
           if (pdfLinkObj) {
             pdfLink = pdfLinkObj._attributes.href;
           } else if (alternateLink) {
@@ -160,8 +174,11 @@ export function createArxivProvider(config: ArxivConfig = {}): SearchProvider { 
             pdfLink = getText(alternateLink._attributes.href).replace('/abs/', '/pdf/');
           }
 
-
-          const authors = entry.author ? (Array.isArray(entry.author) ? entry.author.map(a => getText(a.name)) : [getText(entry.author.name)]) : [];
+          const authors = entry.author
+            ? Array.isArray(entry.author)
+              ? entry.author.map((a) => getText(a.name))
+              : [getText(entry.author.name)]
+            : [];
 
           return {
             url: pdfLink || getText(entry.id), // Prefer PDF link, fallback to entry ID (usually abstract page)
@@ -171,19 +188,24 @@ export function createArxivProvider(config: ArxivConfig = {}): SearchProvider { 
             provider: 'arxiv',
             raw: entry, // Store the raw entry for more details
             authors: authors,
-            categories: entry.category ? (Array.isArray(entry.category) ? entry.category.map(c => c._attributes.term) : [entry.category._attributes.term]) : (entry.primary_category ? [entry.primary_category._attributes.term] : []),
+            categories: entry.category
+              ? Array.isArray(entry.category)
+                ? entry.category.map((c) => c._attributes.term)
+                : [entry.category._attributes.term]
+              : entry.primary_category
+                ? [entry.primary_category._attributes.term]
+                : [],
           };
         });
-        
+
         const totalResults = parseInt(getText(feed['opensearch:totalResults']), 10) || 0;
         debug.logResponse(debugOptions, 'Arxiv Search successful', {
-            status: 'success',
-            itemCount: results.length,
-            totalResults: totalResults,
+          status: 'success',
+          itemCount: results.length,
+          totalResults: totalResults,
         });
         return results;
-
-      } catch (error: unknown) { 
+      } catch (error: unknown) {
         let errorMessage = 'Arxiv search failed';
         let statusCode: number | undefined;
 
@@ -194,7 +216,7 @@ export function createArxivProvider(config: ArxivConfig = {}): SearchProvider { 
           if (error.parsedResponseBody) {
             errorMessage += `\nResponse: ${JSON.stringify(error.parsedResponseBody)}`;
           }
-        } 
+        }
         // Check for Axios-like error objects (avoiding 'any' type)
         else if (typeof error === 'object' && error !== null && 'response' in error) {
           // Use a properly typed interface for axios-like errors
@@ -205,32 +227,38 @@ export function createArxivProvider(config: ArxivConfig = {}): SearchProvider { 
               message?: string;
             };
           }
-          
+
           // Use the interface for type assertion
           const axiosError = error as AxiosLikeError;
           const errResponse = axiosError.response;
-          
+
           if (errResponse && typeof errResponse === 'object') {
             if (errResponse.status && 'data' in errResponse && errResponse.data !== undefined) {
-              errorMessage = `Arxiv API error: ${errResponse.status} - ${JSON.stringify(errResponse.data)}`;
+              errorMessage = `Arxiv API error: ${errResponse.status} - ${JSON.stringify(
+                errResponse.data
+              )}`;
               statusCode = errResponse.status;
-            } else if (errResponse.status && 'message' in errResponse && typeof errResponse.message === 'string') {
+            } else if (
+              errResponse.status &&
+              'message' in errResponse &&
+              typeof errResponse.message === 'string'
+            ) {
               errorMessage = `Arxiv API error: ${errResponse.status} - ${errResponse.message}`;
               statusCode = errResponse.status;
             } else if (errResponse.status) {
               errorMessage = `Arxiv API error: ${errResponse.status}`;
               statusCode = errResponse.status;
             } else if (error instanceof Error) {
-                errorMessage = `Arxiv search failed: ${error.message}`;
+              errorMessage = `Arxiv search failed: ${error.message}`;
             }
           } else if (error instanceof Error) {
             errorMessage = `Arxiv search failed: ${error.message}`;
           }
-        } 
+        }
         // Standard Error object
         else if (error instanceof Error) {
-            errorMessage = `Arxiv search failed: ${error.message}`;
-        } 
+          errorMessage = `Arxiv search failed: ${error.message}`;
+        }
         // Fallback for unknown error types
         else {
           errorMessage = `Arxiv search failed: ${String(error)}`;
@@ -272,6 +300,8 @@ export const arxiv = {
   search: async (_options: SearchOptions): Promise<SearchResult[]> => {
     // This initial search function on the non-configured provider should guide the user.
     // The actual search logic is in `createArxivProvider`.
-    throw new Error('Arxiv provider must be configured before use. Call arxiv.configure() first, even with empty options if defaults are fine.');
-  }
+    throw new Error(
+      'Arxiv provider must be configured before use. Call arxiv.configure() first, even with empty options if defaults are fine.'
+    );
+  },
 };

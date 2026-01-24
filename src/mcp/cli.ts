@@ -39,7 +39,7 @@ async function main() {
       (p: { name: keyof typeof providerFactory; config: Record<string, unknown> }) => {
         const create = providerFactory[p.name];
         if (!create) throw new Error(`Unknown provider specified in config: ${p.name}`);
-        return create(p.config as any);
+        return create(p.config as never);
       }
     );
 
@@ -74,7 +74,7 @@ async function main() {
       },
     });
 
-    console.log(`Starting @plust/search-sdk MCP server...`);
+    console.log(`Starting @omnisearch MCP server...`);
     console.log(`Configured providers: ${hydratedProviders.map((p) => p.name).join(', ')}`);
 
     // Start the MCP server with stdio transport

@@ -1,12 +1,13 @@
 {
-  "name": "@plust/search-sdk",
-  "version": "1.3.0",
+  "name": "@omnisearch",
+  "version": "1.0.0",
   "description": "TypeScript SDK for web search providers",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
     "dist"
   ],
+  "type": "module",
   "scripts": {
     "build": "tsc",
     "lint": "eslint .",
@@ -17,12 +18,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/PlustOrg/search-sdk.git"
+    "url": "git+https://github.com/gbks121/omnisearch.git"
   },
   "bugs": {
-    "url": "https://github.com/PlustOrg/search-sdk/issues"
+    "url": "https://github.com/gbks121/omnisearch/issues"
   },
-  "homepage": "https://github.com/PlustOrg/search-sdk#readme",
+  "homepage": "https://github.com/gbks121/omnisearch#readme",
   "keywords": [
     "search",
     "api",

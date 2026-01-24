@@ -1,4 +1,4 @@
-# @plust/search-sdk
+# @omnisearch
 
 A unified TypeScript SDK for integrating with multiple web search providers through a single, consistent interface.
 
@@ -9,13 +9,13 @@ The Search SDK provides a standardized way to interact with various search APIs,
 ## Installation
 
 ```bash
-npm install @plust/search-sdk
+npm install @omnisearch
 ```
 
 ## Quick Start
 
 ```typescript
-import { google, webSearch } from '@plust/search-sdk';
+import { google, webSearch } from '@omnisearch';
 
 // Configure the Google search provider with your API key and Search Engine ID
 const configuredGoogle = google.configure({
@@ -42,7 +42,7 @@ search();
 You can query multiple search providers simultaneously for better coverage and reliability:
 
 ```typescript
-import { google, brave, webSearch } from '@plust/search-sdk';
+import { google, brave, webSearch } from '@omnisearch';
 
 const googleProvider = google.configure({
   apiKey: 'YOUR_GOOGLE_API_KEY',
@@ -106,7 +106,7 @@ Each search provider needs to be configured before use:
 ### Google Custom Search
 
 ```typescript
-import { google, webSearch } from '@plust/search-sdk';
+import { google, webSearch } from '@omnisearch';
 
 const googleProvider = google.configure({
   apiKey: 'YOUR_GOOGLE_API_KEY',
@@ -123,7 +123,7 @@ const results = await webSearch({
 ### SerpAPI
 
 ```typescript
-import { serpapi, webSearch } from '@plust/search-sdk';
+import { serpapi, webSearch } from '@omnisearch';
 
 const serpProvider = serpapi.configure({
   apiKey: 'YOUR_SERPAPI_KEY',
@@ -142,7 +142,7 @@ const results = await webSearch({
 Brave Search supports multiple search types: Web & News.
 
 ```typescript
-import { brave, webSearch } from '@plust/search-sdk';
+import { brave, webSearch } from '@omnisearch';
 
 // Default web search
 const webProvider = brave.configure({
@@ -173,7 +173,7 @@ const newsResults = await webSearch({
 ### Exa
 
 ```typescript
-import { exa, webSearch } from '@plust/search-sdk';
+import { exa, webSearch } from '@omnisearch';
 
 const exaProvider = exa.configure({
   apiKey: 'YOUR_EXA_API_KEY',
@@ -190,7 +190,7 @@ const results = await webSearch({
 ### Tavily
 
 ```typescript
-import { tavily, webSearch } from '@plust/search-sdk';
+import { tavily, webSearch } from '@omnisearch';
 
 const tavilyProvider = tavily.configure({
   apiKey: 'YOUR_TAVILY_API_KEY',
@@ -208,7 +208,7 @@ const results = await webSearch({
 ### SearXNG
 
 ```typescript
-import { searxng, webSearch } from '@plust/search-sdk';
+import { searxng, webSearch } from '@omnisearch';
 
 const searxngProvider = searxng.configure({
   baseUrl: 'http://127.0.0.1:8080/search',
@@ -229,7 +229,7 @@ const results = await webSearch({
 ### DuckDuckGo
 
 ```typescript
-import { duckduckgo, webSearch } from '@plust/search-sdk';
+import { duckduckgo, webSearch } from '@omnisearch';
 
 // DuckDuckGo doesn't require an API key, but you can configure other options
 const duckduckgoProvider = duckduckgo.configure({
@@ -267,7 +267,7 @@ const newsResults = await webSearch({
 Arxiv is a repository of electronic preprints of scientific papers. It does not require an API key for its public API.
 
 ```typescript
-import { arxiv, webSearch } from '@plust/search-sdk';
+import { arxiv, webSearch } from '@omnisearch';
 
 // Arxiv doesn't require an API key, but you can configure other options.
 const arxivProvider = arxiv.configure({
@@ -287,7 +287,7 @@ const results = await webSearch({
 ### Perplexity
 
 ```typescript
-import { perplexity, webSearch } from '@plust/search-sdk';
+import { perplexity, webSearch } from '@omnisearch';
 
 const perplexityProvider = perplexity.configure({
   apiKey: 'YOUR_PERPLEXITY_API_KEY',
@@ -311,7 +311,7 @@ const results = await webSearch({
 ### Parallel
 
 ```typescript
-import { parallel, webSearch } from '@plust/search-sdk';
+import { parallel, webSearch } from '@omnisearch';
 
 const parallelProvider = parallel.configure({
   apiKey: 'YOUR_PARALLEL_API_KEY',
@@ -373,7 +373,7 @@ interface SearchResult {
 The SDK includes built-in debugging capabilities to help diagnose issues:
 
 ```typescript
-import { google, webSearch } from '@plust/search-sdk';
+import { google, webSearch } from '@omnisearch';
 
 const googleProvider = google.configure({
   apiKey: 'YOUR_GOOGLE_API_KEY',
@@ -404,7 +404,7 @@ The SDK can run as an MCP server that exposes a `webSearch` tool to MCP clients:
 The `asMcp()` function converts your configured search providers into an MCP server configuration that can be used with MCP clients like Stagehand:
 
 ```typescript
-import { google, brave, asMcp } from '@plust/search-sdk';
+import { google, brave, asMcp } from '@omnisearch';
 
 // Configure your search providers
 const googleProvider = google.configure({
@@ -424,7 +424,7 @@ const mcpConfig = asMcp([googleProvider, braveProvider]);
 console.log(mcpConfig);
 // {
 //   command: 'node',
-//   args: ['node_modules/@plust/search-sdk/dist/mcp/cli.js'],
+//   args: ['node_modules/@omnisearch/dist/mcp/cli.js'],
 //   env: {
 //     SEARCH_SDK_MCP_CONFIG: '{"providers":[...]}'
 //   }
@@ -456,7 +456,7 @@ export SEARCH_SDK_MCP_CONFIG='{
 }'
 
 # Run the MCP server (from within your node_modules)
-node node_modules/@plust/search-sdk/dist/mcp/cli.js
+node node_modules/@omnisearch/dist/mcp/cli.js
 ```
 
 The MCP server will start and communicate over stdio, making it compatible with any MCP client.
@@ -490,7 +490,7 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
   "mcpServers": {
     "search-sdk": {
       "command": "node",
-      "args": ["node_modules/@plust/search-sdk/dist/mcp/cli.js"],
+      "args": ["node_modules/@omnisearch/dist/mcp/cli.js"],
       "env": {
         "SEARCH_SDK_MCP_CONFIG": "{\"providers\":[{\"name\":\"brave\",\"config\":{\"apiKey\":\"YOUR_API_KEY\"}}]}"
       }
@@ -505,7 +505,7 @@ Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/
 
 ```typescript
 import { connectToMCPServer } from '@browserbasehq/stagehand';
-import { asMcp, google } from '@plust/search-sdk';
+import { asMcp, google } from '@omnisearch';
 
 const googleProvider = google.configure({
   apiKey: 'YOUR_GOOGLE_API_KEY',

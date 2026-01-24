@@ -9,9 +9,9 @@ const defaultDebugOptions: DebugOptions = {
   logResponses: false,
   logger: (message, data) => {
     if (data) {
-      console.log(`[@plust/search-sdk] ${message}`, data);
+      console.log(`[@omnisearch] ${message}`, data);
     } else {
-      console.log(`[@plust/search-sdk] ${message}`);
+      console.log(`[@omnisearch] ${message}`);
     }
   },
 };

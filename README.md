@@ -1,4 +1,4 @@
-# @omnisearch
+# omnisearch-sdk
 
 A unified TypeScript SDK for integrating with multiple web search providers through a single, consistent interface.
 
@@ -9,13 +9,13 @@ The Search SDK provides a standardized way to interact with various search APIs,
 ## Installation
 
 ```bash
-npm install @omnisearch
+npm install omnisearch-sdk
 ```
 
 ## Quick Start
 
 ```typescript
-import { google, webSearch } from '@omnisearch';
+import { google, webSearch } from 'omnisearch-sdk';
 
 // Configure the Google search provider with your API key and Search Engine ID
 const configuredGoogle = google.configure({
@@ -42,7 +42,7 @@ search();
 You can query multiple search providers simultaneously for better coverage and reliability:
 
 ```typescript
-import { google, brave, webSearch } from '@omnisearch';
+import { google, brave, webSearch } from 'omnisearch-sdk';
 
 const googleProvider = google.configure({
   apiKey: 'YOUR_GOOGLE_API_KEY',
@@ -82,7 +82,6 @@ search();
 - Configurable search parameters (pagination, safe search, language, etc.)
 - Detailed error handling with provider-specific troubleshooting
 - Built-in debugging capabilities
-- **MCP (Model Context Protocol) support** for AI agent integration
 
 ## Supported Search Providers
 
@@ -106,7 +105,7 @@ Each search provider needs to be configured before use:
 ### Google Custom Search
 
 ```typescript
-import { google, webSearch } from '@omnisearch';
+import { google, webSearch } from 'omnisearch-sdk';
 
 const googleProvider = google.configure({
   apiKey: 'YOUR_GOOGLE_API_KEY',
@@ -123,7 +122,7 @@ const results = await webSearch({
 ### SerpAPI
 
 ```typescript
-import { serpapi, webSearch } from '@omnisearch';
+import { serpapi, webSearch } from 'omnisearch-sdk';
 
 const serpProvider = serpapi.configure({
   apiKey: 'YOUR_SERPAPI_KEY',
@@ -142,7 +141,7 @@ const results = await webSearch({
 Brave Search supports multiple search types: Web & News.
 
 ```typescript
-import { brave, webSearch } from '@omnisearch';
+import { brave, webSearch } from 'omnisearch-sdk';
 
 // Default web search
 const webProvider = brave.configure({
@@ -173,7 +172,7 @@ const newsResults = await webSearch({
 ### Exa
 
 ```typescript
-import { exa, webSearch } from '@omnisearch';
+import { exa, webSearch } from 'omnisearch-sdk';
 
 const exaProvider = exa.configure({
   apiKey: 'YOUR_EXA_API_KEY',
@@ -190,7 +189,7 @@ const results = await webSearch({
 ### Tavily
 
 ```typescript
-import { tavily, webSearch } from '@omnisearch';
+import { tavily, webSearch } from 'omnisearch-sdk';
 
 const tavilyProvider = tavily.configure({
   apiKey: 'YOUR_TAVILY_API_KEY',
@@ -208,7 +207,7 @@ const results = await webSearch({
 ### SearXNG
 
 ```typescript
-import { searxng, webSearch } from '@omnisearch';
+import { searxng, webSearch } from 'omnisearch-sdk';
 
 const searxngProvider = searxng.configure({
   baseUrl: 'http://127.0.0.1:8080/search',
@@ -229,7 +228,7 @@ const results = await webSearch({
 ### DuckDuckGo
 
 ```typescript
-import { duckduckgo, webSearch } from '@omnisearch';
+import { duckduckgo, webSearch } from 'omnisearch-sdk';
 
 // DuckDuckGo doesn't require an API key, but you can configure other options
 const duckduckgoProvider = duckduckgo.configure({
@@ -267,7 +266,7 @@ const newsResults = await webSearch({
 Arxiv is a repository of electronic preprints of scientific papers. It does not require an API key for its public API.
 
 ```typescript
-import { arxiv, webSearch } from '@omnisearch';
+import { arxiv, webSearch } from 'omnisearch-sdk';
 
 // Arxiv doesn't require an API key, but you can configure other options.
 const arxivProvider = arxiv.configure({
@@ -287,7 +286,7 @@ const results = await webSearch({
 ### Perplexity
 
 ```typescript
-import { perplexity, webSearch } from '@omnisearch';
+import { perplexity, webSearch } from 'omnisearch-sdk';
 
 const perplexityProvider = perplexity.configure({
   apiKey: 'YOUR_PERPLEXITY_API_KEY',
@@ -311,7 +310,7 @@ const results = await webSearch({
 ### Parallel
 
 ```typescript
-import { parallel, webSearch } from '@omnisearch';
+import { parallel, webSearch } from 'omnisearch-sdk';
 
 const parallelProvider = parallel.configure({
   apiKey: 'YOUR_PARALLEL_API_KEY',
@@ -373,7 +372,7 @@ interface SearchResult {
 The SDK includes built-in debugging capabilities to help diagnose issues:
 
 ```typescript
-import { google, webSearch } from '@omnisearch';
+import { google, webSearch } from 'omnisearch-sdk';
 
 const googleProvider = google.configure({
   apiKey: 'YOUR_GOOGLE_API_KEY',
@@ -386,147 +385,6 @@ const results = await webSearch({
   debug: { enabled: true, logRequests: true, logResponses: true },
 });
 ```
-
-## MCP (Model Context Protocol) Integration
-
-The SDK includes built-in support for the [Model Context Protocol (MCP)](https://modelcontextprotocol.io), allowing AI agents and LLM applications to use web search capabilities through a standardized interface.
-
-### What is MCP?
-
-MCP is an open protocol that standardizes how applications provide context to Large Language Models (LLMs). It enables AI agents to safely access external tools and data sources through a unified interface.
-
-### Using the SDK as an MCP Server
-
-The SDK can run as an MCP server that exposes a `webSearch` tool to MCP clients:
-
-#### Method 1: Using the `asMcp()` Function
-
-The `asMcp()` function converts your configured search providers into an MCP server configuration that can be used with MCP clients like Stagehand:
-
-```typescript
-import { google, brave, asMcp } from '@omnisearch';
-
-// Configure your search providers
-const googleProvider = google.configure({
-  apiKey: 'YOUR_GOOGLE_API_KEY',
-  cx: 'YOUR_SEARCH_ENGINE_ID',
-});
-
-const braveProvider = brave.configure({
-  apiKey: 'YOUR_BRAVE_API_KEY',
-});
-
-// Create MCP server configuration
-const mcpConfig = asMcp([googleProvider, braveProvider]);
-
-// Use with an MCP client (e.g., Stagehand)
-// The mcpConfig object can be passed to connectToMCPServer() or similar
-console.log(mcpConfig);
-// {
-//   command: 'node',
-//   args: ['node_modules/@omnisearch/dist/mcp/cli.js'],
-//   env: {
-//     SEARCH_SDK_MCP_CONFIG: '{"providers":[...]}'
-//   }
-// }
-```
-
-#### Method 2: Running the MCP Server Directly
-
-You can also run the MCP server directly by invoking the CLI script with Node.js:
-
-```bash
-# Set up your configuration
-export SEARCH_SDK_MCP_CONFIG='{
-  "providers": [
-    {
-      "name": "google",
-      "config": {
-        "apiKey": "YOUR_GOOGLE_API_KEY",
-        "cx": "YOUR_SEARCH_ENGINE_ID"
-      }
-    },
-    {
-      "name": "brave",
-      "config": {
-        "apiKey": "YOUR_BRAVE_API_KEY"
-      }
-    }
-  ]
-}'
-
-# Run the MCP server (from within your node_modules)
-node node_modules/@omnisearch/dist/mcp/cli.js
-```
-
-The MCP server will start and communicate over stdio, making it compatible with any MCP client.
-
-### Available MCP Tools
-
-When running as an MCP server, the following tool is exposed:
-
-#### `webSearch`
-
-Performs a web search across all configured providers.
-
-**Parameters:**
-
-- `query` (string, required): The search query
-- `maxResults` (number, optional): Maximum number of results to return
-- `region` (string, optional): Country code for regional results (e.g., "US")
-- `language` (string, optional): Language code for results (e.g., "en-US")
-- `idList` (string, optional): Comma-separated list of Arxiv IDs (Arxiv provider only)
-
-**Returns:** JSON array of search results in the standardized format.
-
-### MCP Client Configuration Examples
-
-#### Claude Desktop
-
-Add to your Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
-
-```json
-{
-  "mcpServers": {
-    "search-sdk": {
-      "command": "node",
-      "args": ["node_modules/@omnisearch/dist/mcp/cli.js"],
-      "env": {
-        "SEARCH_SDK_MCP_CONFIG": "{\"providers\":[{\"name\":\"brave\",\"config\":{\"apiKey\":\"YOUR_API_KEY\"}}]}"
-      }
-    }
-  }
-}
-```
-
-**Note:** The path assumes the package is installed in your project's `node_modules`. Adjust the path if using a different installation method or directory structure.
-
-#### Stagehand
-
-```typescript
-import { connectToMCPServer } from '@browserbasehq/stagehand';
-import { asMcp, google } from '@omnisearch';
-
-const googleProvider = google.configure({
-  apiKey: 'YOUR_GOOGLE_API_KEY',
-  cx: 'YOUR_SEARCH_ENGINE_ID',
-});
-
-const mcpServer = await connectToMCPServer(asMcp([googleProvider]));
-
-// The webSearch tool is now available to your AI agent
-const results = await mcpServer.callTool('webSearch', {
-  query: 'latest AI developments',
-  maxResults: 5,
-});
-```
-
-### Benefits of MCP Integration
-
-- **Standardized Interface**: AI agents can access web search through a consistent protocol
-- **Secure**: Provider credentials are managed securely through environment variables
-- **Flexible**: Support for multiple search providers in a single MCP server
-- **Easy Integration**: Works with any MCP-compatible client (Claude Desktop, Stagehand, etc.)
 
 ## Error Handling
 

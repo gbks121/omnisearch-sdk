@@ -227,6 +227,3 @@ export * from './providers';
 
 // Export debug utilities
 export { debug } from './utils/debug';
-
-// Export MCP interface
-export { asMcp } from './mcp';

@@ -17,12 +17,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gbks121/omnisearch.git"
+    "url": "git+https://github.com/gbks121/omnisearch-sdk.git"
   },
   "bugs": {
-    "url": "https://github.com/gbks121/omnisearch/issues"
+    "url": "https://github.com/gbks121/omnisearch-sdk/issues"
   },
-  "homepage": "https://github.com/gbks121/omnisearch#readme",
+  "homepage": "https://github.com/gbks121/omnisearch-sdk#readme",
   "keywords": [
     "search",
     "api",

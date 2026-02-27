@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createGoogleProvider, google } from '../providers/google';
-import { HttpError } from '../utils/http';
 
 function mockFetch(status: number, body: unknown, statusText = 'OK'): void {
   const bodyStr = JSON.stringify(body);

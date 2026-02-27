@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { debug } from '../utils/debug';
 
+type LoggerFn = (message: string, data?: unknown) => void;
+
 describe('debug utility', () => {
-  let customLogger: ReturnType<typeof vi.fn>;
+  let customLogger: LoggerFn & ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    customLogger = vi.fn();
+    customLogger = vi.fn() as unknown as LoggerFn & ReturnType<typeof vi.fn>;
   });
 
   describe('debug.log', () => {

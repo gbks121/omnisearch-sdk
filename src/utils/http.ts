@@ -107,7 +107,7 @@ export async function makeRequest<T>(url: string, options: HttpRequestOptions = 
           };
         }
       } else {
-        requestOptions.body = body as BodyInit;
+        requestOptions.body = body as RequestInit['body'];
       }
     }
 

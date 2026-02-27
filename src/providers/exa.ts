@@ -56,6 +56,10 @@ export function createExaProvider(config: ExaConfig): SearchProvider {
     search: async (options: SearchOptions): Promise<SearchResult[]> => {
       const { query, maxResults = 10, timeout, debug: debugOptions } = options;
 
+      if (!query || !query.trim()) {
+        throw new Error('Exa search requires a query.');
+      }
+
       // Prepare headers with authorization token
       const headers = {
         'Content-Type': 'application/json',

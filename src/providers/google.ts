@@ -116,15 +116,22 @@ export function createGoogleProvider(config: GoogleSearchConfig): SearchProvider
         debug: debugOptions,
       } = options;
 
+      if (!query || !query.trim()) {
+        throw new Error('Google search requires a query.');
+      }
+
+      // Clamp maxResults to a positive integer; Google API hard-caps at 10
+      const clampedMaxResults = Math.max(1, Math.min(10, Math.floor(maxResults)));
+
       // Calculate start index for pagination
-      const start = (page - 1) * maxResults + 1;
+      const start = (page - 1) * clampedMaxResults + 1;
 
       // Map SDK parameters to Google API parameters
       const params: Record<string, string | number | undefined> = {
         key: config.apiKey,
         cx: config.cx,
         q: query,
-        num: maxResults > 10 ? 10 : maxResults, // Google limits to 10 max results per request
+        num: clampedMaxResults, // Google limits to 10 max results per request
         start,
       };
 
@@ -169,28 +176,32 @@ export function createGoogleProvider(config: GoogleSearchConfig): SearchProvider
         }
 
         // Transform Google response to standard SearchResult format
-        return response.items.map((item) => {
-          // Extract domain from the displayLink
-          const domain = item.displayLink;
+        return response.items
+          .filter((item) => item.link && item.title)
+          .map((item) => {
+            // Extract domain from the displayLink
+            const domain = item.displayLink || undefined;
 
-          // Attempt to extract published date from metadata if available
-          let publishedDate: string | undefined;
-          if (item.pagemap?.metatags && item.pagemap.metatags.length > 0) {
-            const metatags = item.pagemap.metatags[0];
-            publishedDate =
-              metatags['article:published_time'] || metatags['date'] || metatags['og:updated_time'];
-          }
+            // Attempt to extract published date from metadata if available
+            let publishedDate: string | undefined;
+            if (item.pagemap?.metatags && item.pagemap.metatags.length > 0) {
+              const metatags = item.pagemap.metatags[0];
+              publishedDate =
+                metatags['article:published_time'] ||
+                metatags['date'] ||
+                metatags['og:updated_time'];
+            }
 
-          return {
-            url: item.link,
-            title: item.title,
-            snippet: item.snippet,
-            domain,
-            publishedDate,
-            provider: 'google',
-            raw: item,
-          };
-        });
+            return {
+              url: item.link,
+              title: item.title,
+              snippet: item.snippet || undefined,
+              domain,
+              publishedDate,
+              provider: 'google',
+              raw: item,
+            };
+          });
       } catch (error) {
         // Create detailed error message with diagnostic information
         let errorMessage = 'Google search failed';

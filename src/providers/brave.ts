@@ -117,7 +117,7 @@ export function createBraveProvider(config: BraveSearchConfig): SearchProvider {
       const offset = (page - 1) * maxResults;
 
       // Build query parameters
-      if (!query) {
+      if (!query || !query.trim()) {
         throw new Error('Brave search requires a query.');
       }
 

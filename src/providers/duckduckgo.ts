@@ -90,17 +90,20 @@ function normalizeText(text: string): string {
 }
 
 /**
- * Normalizes URLs by ensuring they start with http/https
+ * Normalizes URLs by ensuring they start with http/https.
+ * Returns an empty string for falsy input so callers can filter.
  */
 function normalizeUrl(url: string): string {
-  if (!url) return '';
-  if (url.startsWith('//')) {
-    return `https:${url}`;
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('//')) {
+    return `https:${trimmed}`;
   }
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    return `https://${url}`;
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+    return `https://${trimmed}`;
   }
-  return url;
+  return trimmed;
 }
 
 /**
@@ -108,9 +111,10 @@ function normalizeUrl(url: string): string {
  * This is a temporary value that is embedded in the search HTML response
  */
 function extractVqd(html: string, _keywords: string): string | null {
+  if (!html) return null;
   try {
-    const regex = new RegExp(`vqd=['"]([^'"]+)['"]`, 'i');
-    const match = html.match(regex);
+    // Use a fixed regex — does not interpolate user input
+    const match = html.match(/vqd=['"]([^'"]+)['"]/i);
     return match ? match[1] : null;
   } catch (_error) {
     return null;
@@ -160,7 +164,7 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
       const duckOptions = options as DuckDuckGoSearchOptions;
       const effectiveSearchType = duckOptions.searchType || searchType;
 
-      if (!query) {
+      if (!query || !query.trim()) {
         throw new Error('DuckDuckGo search requires a query.');
       }
 

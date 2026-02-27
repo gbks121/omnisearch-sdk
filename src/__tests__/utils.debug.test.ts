@@ -51,6 +51,14 @@ describe('debug utility', () => {
       debug.log({ enabled: true, logger: customLogger }, 'merged');
       expect(customLogger).toHaveBeenCalled();
     });
+
+    it('swallows errors thrown by a custom logger', () => {
+      const throwingLogger = vi.fn().mockImplementation(() => {
+        throw new Error('logger failure');
+      });
+      // Should not throw even though the logger throws
+      expect(() => debug.log({ enabled: true, logger: throwingLogger }, 'msg')).not.toThrow();
+    });
   });
 
   describe('debug.logRequest', () => {

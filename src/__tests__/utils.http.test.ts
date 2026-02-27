@@ -94,6 +94,10 @@ describe('HttpError', () => {
 });
 
 describe('buildUrl', () => {
+  it('throws on empty base URL', () => {
+    expect(() => buildUrl('', { q: 'test' })).toThrow('non-empty base URL');
+  });
+
   it('builds a URL with query parameters', () => {
     const url = buildUrl('https://example.com/search', { q: 'test', count: 10 });
     expect(url).toBe('https://example.com/search?q=test&count=10');

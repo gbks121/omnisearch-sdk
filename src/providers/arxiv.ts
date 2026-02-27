@@ -209,65 +209,22 @@ export function createArxivProvider(config: ArxivConfig = {}): SearchProvider {
         let errorMessage = 'Arxiv search failed';
         let statusCode: number | undefined;
 
-        // Define a type guard for HTTP errors
         if (error instanceof HttpError) {
           errorMessage = `Arxiv API error: ${error.statusCode} - ${error.message}`;
           statusCode = error.statusCode;
           if (error.parsedResponseBody) {
             errorMessage += `\nResponse: ${JSON.stringify(error.parsedResponseBody)}`;
           }
-        }
-        // Check for Axios-like error objects (avoiding 'any' type)
-        else if (typeof error === 'object' && error !== null && 'response' in error) {
-          // Use a properly typed interface for axios-like errors
-          interface AxiosLikeError {
-            response?: {
-              status?: number;
-              data?: unknown;
-              message?: string;
-            };
-          }
-
-          // Use the interface for type assertion
-          const axiosError = error as AxiosLikeError;
-          const errResponse = axiosError.response;
-
-          if (errResponse && typeof errResponse === 'object') {
-            if (errResponse.status && 'data' in errResponse && errResponse.data !== undefined) {
-              errorMessage = `Arxiv API error: ${errResponse.status} - ${JSON.stringify(
-                errResponse.data
-              )}`;
-              statusCode = errResponse.status;
-            } else if (
-              errResponse.status &&
-              'message' in errResponse &&
-              typeof errResponse.message === 'string'
-            ) {
-              errorMessage = `Arxiv API error: ${errResponse.status} - ${errResponse.message}`;
-              statusCode = errResponse.status;
-            } else if (errResponse.status) {
-              errorMessage = `Arxiv API error: ${errResponse.status}`;
-              statusCode = errResponse.status;
-            } else if (error instanceof Error) {
-              errorMessage = `Arxiv search failed: ${error.message}`;
-            }
-          } else if (error instanceof Error) {
-            errorMessage = `Arxiv search failed: ${error.message}`;
-          }
-        }
-        // Standard Error object
-        else if (error instanceof Error) {
+        } else if (error instanceof Error) {
           errorMessage = `Arxiv search failed: ${error.message}`;
-        }
-        // Fallback for unknown error types
-        else {
+        } else {
           errorMessage = `Arxiv search failed: ${String(error)}`;
         }
 
         debug.log(debugOptions, 'Arxiv Search error', {
           error: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined,
-          statusCode: statusCode,
+          statusCode,
           url,
         });
         throw new Error(errorMessage);

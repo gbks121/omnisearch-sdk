@@ -50,6 +50,14 @@ describe('createTavilyProvider', () => {
     expect(provider.name).toBe('tavily');
   });
 
+  it('throws if query is empty or whitespace', async () => {
+    const provider = createTavilyProvider({ apiKey: 'test-key' });
+    await expect(provider.search({ query: '' })).rejects.toThrow('Tavily search requires a query');
+    await expect(provider.search({ query: '  ' })).rejects.toThrow(
+      'Tavily search requires a query'
+    );
+  });
+
   it('returns search results correctly', async () => {
     mockFetch(200, sampleTavilyResponse);
     const provider = createTavilyProvider({ apiKey: 'test-key' });

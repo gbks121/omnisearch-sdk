@@ -37,6 +37,13 @@ describe('webSearch', () => {
     );
   });
 
+  it('throws if query is only whitespace', async () => {
+    const provider = makeProvider('google', []);
+    await expect(webSearch({ provider: [provider], query: '   ' })).rejects.toThrow(
+      'A search query or ID list (for Arxiv) is required'
+    );
+  });
+
   it('allows search without query if arxiv provider with idList', async () => {
     const arxivProvider = makeProvider('arxiv', sampleResults);
     const results = await webSearch({

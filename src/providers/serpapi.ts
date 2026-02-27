@@ -94,6 +94,10 @@ export function createSerpApiProvider(config: SerpApiConfig): SearchProvider {
         debug: debugOptions,
       } = options;
 
+      if (!query || !query.trim()) {
+        throw new Error('SerpAPI search requires a query.');
+      }
+
       // Map SDK parameters to SerpAPI parameters
       const params: Record<string, string | number | boolean | undefined> = {
         engine,
@@ -148,20 +152,22 @@ export function createSerpApiProvider(config: SerpApiConfig): SearchProvider {
         }
 
         // Transform SerpAPI response to standard SearchResult format
-        return response.organic_results.map((result) => {
-          // Extract domain from displayed_link
-          const domain = result.displayed_link?.split('/')[0];
+        return response.organic_results
+          .filter((result) => result.link && result.title)
+          .map((result) => {
+            // Extract domain from displayed_link
+            const domain = result.displayed_link?.split('/')[0] || undefined;
 
-          return {
-            url: result.link,
-            title: result.title,
-            snippet: result.snippet,
-            domain,
-            publishedDate: result.date,
-            provider: 'serpapi',
-            raw: result,
-          };
-        });
+            return {
+              url: result.link,
+              title: result.title,
+              snippet: result.snippet || undefined,
+              domain,
+              publishedDate: result.date,
+              provider: 'serpapi',
+              raw: result,
+            };
+          });
       } catch (error) {
         // Create detailed error message with diagnostic information
         let errorMessage = 'SerpAPI search failed';

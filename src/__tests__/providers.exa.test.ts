@@ -49,6 +49,12 @@ describe('createExaProvider', () => {
     expect(provider.name).toBe('exa');
   });
 
+  it('throws if query is empty or whitespace', async () => {
+    const provider = createExaProvider({ apiKey: 'test-key' });
+    await expect(provider.search({ query: '' })).rejects.toThrow('Exa search requires a query');
+    await expect(provider.search({ query: '  ' })).rejects.toThrow('Exa search requires a query');
+  });
+
   it('returns search results correctly', async () => {
     mockFetch(200, sampleExaResponse);
     const provider = createExaProvider({ apiKey: 'test-key' });

@@ -62,9 +62,13 @@ export function createSearxNGProvider(config: SearxNGConfig): SearchProvider {
         debug: debugOptions,
       } = options;
 
+      if (!query || !query.trim()) {
+        throw new Error('SearXNG search requires a query.');
+      }
+
       // Build query parameters
       const searchUrl = new URL(config.baseUrl);
-      searchUrl.searchParams.append('q', query || '');
+      searchUrl.searchParams.append('q', query.trim());
       searchUrl.searchParams.append('format', 'json');
 
       if (maxResults) {

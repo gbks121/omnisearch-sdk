@@ -107,6 +107,14 @@ describe('createGoogleProvider', () => {
     expect(provider.config.apiKey).toBe('test-key');
   });
 
+  it('throws if query is empty or whitespace', async () => {
+    const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
+    await expect(provider.search({ query: '' })).rejects.toThrow('Google search requires a query');
+    await expect(provider.search({ query: '  ' })).rejects.toThrow(
+      'Google search requires a query'
+    );
+  });
+
   it('returns search results correctly', async () => {
     mockFetch(200, sampleGoogleResponse);
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });

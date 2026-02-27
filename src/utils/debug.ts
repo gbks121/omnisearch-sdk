@@ -32,7 +32,11 @@ export const debug = {
     if (opts.enabled) {
       const logger = opts.logger || defaultDebugOptions.logger;
       if (logger) {
-        logger(message, data);
+        try {
+          logger(message, data);
+        } catch {
+          // Swallow logger errors — debug logging must never crash callers
+        }
       }
     }
   },
@@ -49,7 +53,11 @@ export const debug = {
     if (opts.enabled && opts.logRequests) {
       const logger = opts.logger || defaultDebugOptions.logger;
       if (logger) {
-        logger(`REQUEST: ${message}`, data);
+        try {
+          logger(`REQUEST: ${message}`, data);
+        } catch {
+          // Swallow logger errors — debug logging must never crash callers
+        }
       }
     }
   },
@@ -66,7 +74,11 @@ export const debug = {
     if (opts.enabled && opts.logResponses) {
       const logger = opts.logger || defaultDebugOptions.logger;
       if (logger) {
-        logger(`RESPONSE: ${message}`, data);
+        try {
+          logger(`RESPONSE: ${message}`, data);
+        } catch {
+          // Swallow logger errors — debug logging must never crash callers
+        }
       }
     }
   },

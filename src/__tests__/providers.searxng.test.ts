@@ -50,6 +50,14 @@ describe('createSearxNGProvider', () => {
     expect(provider.name).toBe('searxng');
   });
 
+  it('throws if query is empty or whitespace', async () => {
+    const provider = createSearxNGProvider({ baseUrl: 'https://searxng.example.com/search' });
+    await expect(provider.search({ query: '' })).rejects.toThrow('SearXNG search requires a query');
+    await expect(provider.search({ query: '  ' })).rejects.toThrow(
+      'SearXNG search requires a query'
+    );
+  });
+
   it('returns search results correctly', async () => {
     mockFetch(200, sampleSearxNGResponse);
     const provider = createSearxNGProvider({ baseUrl: 'https://searxng.example.com/search' });

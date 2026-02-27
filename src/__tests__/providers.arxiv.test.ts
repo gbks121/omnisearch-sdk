@@ -311,50 +311,26 @@ describe('createArxivProvider', () => {
     );
   });
 
-  it('handles axios-like error with response.status and response.data', async () => {
-    const axiosLikeError = {
-      message: 'Axios error',
-      response: {
-        status: 400,
-        data: { error: 'bad params' },
-      },
-    };
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(axiosLikeError));
-    const provider = createArxivProvider();
-    await expect(provider.search({ query: 'test' })).rejects.toThrow('Arxiv API error: 400');
-  });
-
-  it('handles axios-like error with response.status and response.message', async () => {
-    const axiosLikeError = {
-      response: {
-        status: 500,
-        message: 'Internal server error',
-      },
-    };
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(axiosLikeError));
-    const provider = createArxivProvider();
-    await expect(provider.search({ query: 'test' })).rejects.toThrow('Arxiv API error: 500');
-  });
-
-  it('handles axios-like error with only response.status', async () => {
-    const axiosLikeError = {
-      response: {
-        status: 503,
-      },
-    };
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(axiosLikeError));
-    const provider = createArxivProvider();
-    await expect(provider.search({ query: 'test' })).rejects.toThrow('Arxiv API error: 503');
-  });
-
-  it('handles axios-like error with response but no status/data', async () => {
-    const axiosLikeError = {
-      response: {},
-      message: 'test error',
-    };
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(axiosLikeError));
+  it('wraps plain objects thrown as errors', async () => {
+    // Plain objects (non-Error, non-HttpError) are converted via String()
+    const plainObject = { message: 'something went wrong' };
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(plainObject));
     const provider = createArxivProvider();
     await expect(provider.search({ query: 'test' })).rejects.toThrow('Arxiv search failed');
+  });
+
+  it('wraps Error subclasses as standard Error message', async () => {
+    class CustomError extends Error {
+      constructor() {
+        super('custom error message');
+        this.name = 'CustomError';
+      }
+    }
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new CustomError()));
+    const provider = createArxivProvider();
+    await expect(provider.search({ query: 'test' })).rejects.toThrow(
+      'Arxiv search failed: custom error message'
+    );
   });
 
   it('handles HttpError with parsedResponseBody', async () => {

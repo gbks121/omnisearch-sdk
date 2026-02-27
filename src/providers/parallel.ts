@@ -136,7 +136,7 @@ export function createParallelProvider(config: ParallelConfig): SearchProvider {
     search: async (options: SearchOptions): Promise<SearchResult[]> => {
       const { query, maxResults = 10, timeout, debug: debugOptions } = options;
 
-      if (!query) {
+      if (!query || !query.trim()) {
         throw new Error('Parallel search requires a query.');
       }
 

@@ -81,7 +81,7 @@ export function createPerplexityProvider(config: PerplexityConfig): SearchProvid
     search: async (options: SearchOptions): Promise<SearchResult[]> => {
       const { query, maxResults = 10, region, language, timeout, debug: debugOptions } = options;
 
-      if (!query) {
+      if (!query || !query.trim()) {
         throw new Error('Perplexity search requires a query.');
       }
 

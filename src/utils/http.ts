@@ -107,7 +107,7 @@ export async function makeRequest<T>(url: string, options: HttpRequestOptions = 
           };
         }
       } else {
-        requestOptions.body = body as BodyInit;
+        requestOptions.body = body as RequestInit['body'];
       }
     }
 
@@ -172,9 +172,21 @@ export async function makeRequest<T>(url: string, options: HttpRequestOptions = 
       throw httpError;
     }
 
-    // Parse response as JSON
-    const data = await response.json();
-    return data as T;
+    // Parse response - try JSON first, fall back to text for non-JSON content-types
+    const contentType = response.headers?.get?.('content-type') ?? '';
+    if (contentType.includes('application/json') || contentType === '') {
+      try {
+        const data = await response.json();
+        return data as T;
+      } catch {
+        // JSON parse failed despite content-type hint — return raw text cast to T
+        const text = await response.text();
+        return text as unknown as T;
+      }
+    } else {
+      const text = await response.text();
+      return text as unknown as T;
+    }
   } catch (error) {
     // Handle timeout errors
     if (error instanceof Error && error.name === 'AbortError') {
@@ -216,11 +228,15 @@ export function buildUrl(
   baseUrl: string,
   params: Record<string, string | number | boolean | undefined>
 ): string {
+  if (!baseUrl) {
+    throw new Error('buildUrl requires a non-empty base URL');
+  }
+
   const url = new URL(baseUrl);
 
   // Add query parameters to URL
   Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined) {
+    if (value !== undefined && value !== null) {
       url.searchParams.append(key, String(value));
     }
   });

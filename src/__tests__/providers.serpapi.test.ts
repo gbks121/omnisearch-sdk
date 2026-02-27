@@ -66,6 +66,14 @@ describe('createSerpApiProvider', () => {
     expect(provider.name).toBe('serpapi');
   });
 
+  it('throws if query is empty or whitespace', async () => {
+    const provider = createSerpApiProvider({ apiKey: 'test-key' });
+    await expect(provider.search({ query: '' })).rejects.toThrow('SerpAPI search requires a query');
+    await expect(provider.search({ query: '  ' })).rejects.toThrow(
+      'SerpAPI search requires a query'
+    );
+  });
+
   it('returns search results correctly', async () => {
     mockFetch(200, sampleSerpApiResponse);
     const provider = createSerpApiProvider({ apiKey: 'test-key' });

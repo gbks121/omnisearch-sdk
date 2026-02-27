@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { debug } from '../utils/debug';
 
+type LoggerFn = (message: string, data?: unknown) => void;
+
 describe('debug utility', () => {
-  let customLogger: ReturnType<typeof vi.fn>;
+  let customLogger: LoggerFn & ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    customLogger = vi.fn();
+    customLogger = vi.fn() as unknown as LoggerFn & ReturnType<typeof vi.fn>;
   });
 
   describe('debug.log', () => {
@@ -50,6 +52,14 @@ describe('debug utility', () => {
       // Only enabled is set, other options should use defaults
       debug.log({ enabled: true, logger: customLogger }, 'merged');
       expect(customLogger).toHaveBeenCalled();
+    });
+
+    it('swallows errors thrown by a custom logger', () => {
+      const throwingLogger = vi.fn().mockImplementation(() => {
+        throw new Error('logger failure');
+      });
+      // Should not throw even though the logger throws
+      expect(() => debug.log({ enabled: true, logger: throwingLogger }, 'msg')).not.toThrow();
     });
   });
 

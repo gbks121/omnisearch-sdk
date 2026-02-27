@@ -87,10 +87,14 @@ export function createTavilyProvider(config: TavilyConfig): SearchProvider {
         debug: debugOptions,
       } = options;
 
+      if (!query || !query.trim()) {
+        throw new Error('Tavily search requires a query.');
+      }
+
       // Prepare request body
       const requestBody: TavilyRequestBody = {
         api_key: config.apiKey || '',
-        query: query || '',
+        query: query.trim(),
         limit: maxResults,
         include_answer: config.includeAnswer || false,
         search_depth: config.searchDepth || 'basic',

@@ -1,20 +1,25 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
-import { createArxivProvider, arxiv } from '../providers/arxiv';
 
-// Mock xml2js so we control the parsed output
-vi.mock('xml2js', () => ({
-  parseStringPromise: vi.fn(),
+// vi.hoisted runs before vi.mock factories, making mockParseFn available
+// inside the factory closure without hitting a temporal-dead-zone error.
+const { mockParseFn } = vi.hoisted(() => ({ mockParseFn: vi.fn() }));
+
+vi.mock('fast-xml-parser', () => ({
+  XMLParser: class {
+    parse = mockParseFn;
+  },
 }));
 
-import { parseStringPromise } from 'xml2js';
+import { createArxivProvider, arxiv } from '../providers/arxiv';
 
-const mockParseStringPromise = vi.mocked(parseStringPromise);
+const getMockParse = () => mockParseFn;
 
 function createTextResponse(body: string): Response {
   return {
     ok: true,
     status: 200,
     statusText: 'OK',
+    headers: { get: () => 'text/xml' },
     json: vi.fn().mockResolvedValue(body),
     text: vi.fn().mockResolvedValue(body),
     clone: vi.fn().mockReturnValue({ text: vi.fn().mockResolvedValue(body) }),
@@ -27,13 +32,16 @@ function createErrorResponse(status: number, body: unknown, statusText: string):
     ok: false,
     status,
     statusText,
+    headers: { get: () => 'application/json' },
     json: vi.fn().mockResolvedValue(body),
     text: vi.fn().mockResolvedValue(bodyStr),
     clone: vi.fn().mockReturnValue({ text: vi.fn().mockResolvedValue(bodyStr) }),
   } as unknown as Response;
 }
 
-// Mock feed data that the code would expect: { feed: { entry: [...], ... } }
+// ---------------------------------------------------------------------------
+// Mock feed data — flat fast-xml-parser shape (no _attributes / _text wrappers)
+// ---------------------------------------------------------------------------
 const mockSingleEntry = {
   id: 'http://arxiv.org/abs/2305.00001v1',
   updated: '2023-05-01T00:00:00Z',
@@ -42,23 +50,15 @@ const mockSingleEntry = {
   summary: 'Abstract of the test paper',
   author: [{ name: 'John Doe' }, { name: 'Jane Smith' }],
   link: [
+    { href: 'http://arxiv.org/abs/2305.00001v1', rel: 'alternate', type: 'text/html' },
     {
-      _attributes: {
-        href: 'http://arxiv.org/abs/2305.00001v1',
-        rel: 'alternate',
-        type: 'text/html',
-      },
-    },
-    {
-      _attributes: {
-        title: 'pdf',
-        href: 'http://arxiv.org/pdf/2305.00001v1',
-        rel: 'related',
-        type: 'application/pdf',
-      },
+      href: 'http://arxiv.org/pdf/2305.00001v1',
+      rel: 'related',
+      type: 'application/pdf',
+      title: 'pdf',
     },
   ],
-  category: { _attributes: { term: 'cs.AI', scheme: 'http://arxiv.org/schemas/atom' } },
+  category: [{ term: 'cs.AI', scheme: 'http://arxiv.org/schemas/atom' }],
 };
 
 const mockSecondEntry = {
@@ -67,19 +67,11 @@ const mockSecondEntry = {
   published: '2023-05-02T00:00:00Z',
   title: 'Another\n  Paper',
   summary: 'Multi-line\n  summary text',
-  author: { name: 'Bob Johnson' },
-  link: [
-    {
-      _attributes: {
-        href: 'http://arxiv.org/abs/2305.00002v1',
-        rel: 'alternate',
-        type: 'text/html',
-      },
-    },
-  ],
+  author: [{ name: 'Bob Johnson' }],
+  link: [{ href: 'http://arxiv.org/abs/2305.00002v1', rel: 'alternate', type: 'text/html' }],
   category: [
-    { _attributes: { term: 'cs.LG', scheme: 'http://arxiv.org/schemas/atom' } },
-    { _attributes: { term: 'stat.ML', scheme: 'http://arxiv.org/schemas/atom' } },
+    { term: 'cs.LG', scheme: 'http://arxiv.org/schemas/atom' },
+    { term: 'stat.ML', scheme: 'http://arxiv.org/schemas/atom' },
   ],
 };
 
@@ -92,30 +84,29 @@ const mockParsedFeedMultiEntry = {
   },
 };
 
+// Single entry — alternate link only (no explicit PDF link), no categories
+const mockSingleEntryNoPdf = {
+  ...mockSingleEntry,
+  link: [{ href: 'http://arxiv.org/abs/2305.00003v1', rel: 'alternate', type: 'text/html' }],
+  author: [{ name: 'Alice' }],
+  category: [],
+};
+
 const mockParsedFeedSingleEntry = {
   feed: {
-    entry: {
-      ...mockSingleEntry,
-      link: {
-        _attributes: {
-          href: 'http://arxiv.org/abs/2305.00003v1',
-          rel: 'alternate',
-          type: 'text/html',
-        },
-      },
-      author: { name: 'Alice' },
-      category: undefined,
-      primary_category: { _attributes: { term: 'cs.CV', scheme: 'http://arxiv.org/schemas/atom' } },
-    },
+    entry: [mockSingleEntryNoPdf],
     'opensearch:totalResults': '1',
     'opensearch:startIndex': '0',
     'opensearch:itemsPerPage': '10',
   },
 };
 
+// ---------------------------------------------------------------------------
+
 describe('createArxivProvider', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createTextResponse('<xml/>')));
+    getMockParse().mockReturnValue(mockParsedFeedMultiEntry);
   });
 
   afterEach(() => {
@@ -141,7 +132,7 @@ describe('createArxivProvider', () => {
   });
 
   it('returns search results from parsed XML with multiple entries', async () => {
-    mockParseStringPromise.mockResolvedValueOnce(mockParsedFeedMultiEntry);
+    getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider();
     const results = await provider.search({ query: 'test paper' });
 
@@ -153,8 +144,8 @@ describe('createArxivProvider', () => {
     expect(results[0].provider).toBe('arxiv');
   });
 
-  it('handles single entry (non-array)', async () => {
-    mockParseStringPromise.mockResolvedValueOnce(mockParsedFeedSingleEntry);
+  it('handles single entry in array', async () => {
+    getMockParse().mockReturnValueOnce(mockParsedFeedSingleEntry);
     const provider = createArxivProvider();
     const results = await provider.search({ query: 'test' });
 
@@ -163,15 +154,16 @@ describe('createArxivProvider', () => {
   });
 
   it('falls back to abstract URL converted to /pdf/ when no PDF link', async () => {
-    mockParseStringPromise.mockResolvedValueOnce(mockParsedFeedSingleEntry);
+    getMockParse().mockReturnValueOnce(mockParsedFeedSingleEntry);
     const provider = createArxivProvider();
     const results = await provider.search({ query: 'test' });
-    // Single entry has only alternate link (no PDF link) - should convert to /pdf/
+    // Has only alternate link → converted to /pdf/
     expect(results[0].url).toContain('/pdf/');
+    expect(results[0].url).toBe('http://arxiv.org/pdf/2305.00003v1');
   });
 
   it('returns empty array when no entries in feed', async () => {
-    mockParseStringPromise.mockResolvedValueOnce({
+    getMockParse().mockReturnValueOnce({
       feed: {
         'opensearch:totalResults': '0',
         'opensearch:startIndex': '0',
@@ -184,61 +176,68 @@ describe('createArxivProvider', () => {
   });
 
   it('returns empty when parsedXml is null/empty', async () => {
-    mockParseStringPromise.mockResolvedValueOnce(null);
+    getMockParse().mockReturnValueOnce(null);
     const provider = createArxivProvider();
     const results = await provider.search({ query: 'test' });
     expect(results).toEqual([]);
   });
 
   it('returns empty when parsedXml.feed is missing', async () => {
-    mockParseStringPromise.mockResolvedValueOnce({});
+    getMockParse().mockReturnValueOnce({});
     const provider = createArxivProvider();
     const results = await provider.search({ query: 'test' });
     expect(results).toEqual([]);
   });
 
   it('handles multiple authors correctly', async () => {
-    mockParseStringPromise.mockResolvedValueOnce(mockParsedFeedMultiEntry);
+    getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider();
     const results = await provider.search({ query: 'test' });
-    // First entry has array of authors
-    expect(results[0].raw).toBeDefined();
+    // First entry has 2 authors
+    expect((results[0] as { authors?: string[] }).authors).toEqual(['John Doe', 'Jane Smith']);
   });
 
-  it('handles single author (non-array)', async () => {
-    mockParseStringPromise.mockResolvedValueOnce(mockParsedFeedMultiEntry);
+  it('handles single author in array', async () => {
+    getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider();
     const results = await provider.search({ query: 'test' });
-    // Second entry has single author
-    expect(results[1].raw).toBeDefined();
+    // Second entry has single author array
+    expect((results[1] as { authors?: string[] }).authors).toEqual(['Bob Johnson']);
   });
 
   it('handles multiple categories', async () => {
-    mockParseStringPromise.mockResolvedValueOnce(mockParsedFeedMultiEntry);
+    getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider();
     const results = await provider.search({ query: 'test' });
-    // Second entry has multiple categories
-    expect(results[1].raw).toBeDefined();
+    // Second entry has 2 categories
+    expect((results[1] as { categories?: string[] }).categories).toEqual(['cs.LG', 'stat.ML']);
   });
 
-  it('handles primary_category when no category array', async () => {
-    mockParseStringPromise.mockResolvedValueOnce(mockParsedFeedSingleEntry);
+  it('extracts single category correctly', async () => {
+    getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider();
     const results = await provider.search({ query: 'test' });
-    // Entry has primary_category set
-    expect(results[0].raw).toBeDefined();
+    expect((results[0] as { categories?: string[] }).categories).toEqual(['cs.AI']);
   });
 
   it('cleans up multi-line title', async () => {
-    mockParseStringPromise.mockResolvedValueOnce(mockParsedFeedMultiEntry);
+    getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider();
     const results = await provider.search({ query: 'test' });
     // Second entry has multi-line title
+    expect(results[1].title).toBe('Another Paper');
     expect(results[1].title).not.toContain('\n');
   });
 
+  it('cleans up multi-line summary', async () => {
+    getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
+    const provider = createArxivProvider();
+    const results = await provider.search({ query: 'test' });
+    expect(results[1].snippet).toBe('Multi-line summary text');
+  });
+
   it('uses idList in query params', async () => {
-    mockParseStringPromise.mockResolvedValueOnce(mockParsedFeedSingleEntry);
+    getMockParse().mockReturnValueOnce(mockParsedFeedSingleEntry);
     const provider = createArxivProvider();
     await provider.search({ idList: '2305.00001' });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
@@ -246,7 +245,7 @@ describe('createArxivProvider', () => {
   });
 
   it('includes query in search_query params', async () => {
-    mockParseStringPromise.mockResolvedValueOnce(mockParsedFeedMultiEntry);
+    getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider();
     await provider.search({ query: 'machine learning' });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
@@ -254,7 +253,7 @@ describe('createArxivProvider', () => {
   });
 
   it('applies sortBy and sortOrder from options', async () => {
-    mockParseStringPromise.mockResolvedValueOnce(mockParsedFeedMultiEntry);
+    getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider();
     await provider.search({ query: 'test', sortBy: 'submittedDate', sortOrder: 'ascending' });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
@@ -263,7 +262,7 @@ describe('createArxivProvider', () => {
   });
 
   it('applies start param', async () => {
-    mockParseStringPromise.mockResolvedValueOnce(mockParsedFeedMultiEntry);
+    getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider();
     await provider.search({ query: 'test', start: 10 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
@@ -271,7 +270,7 @@ describe('createArxivProvider', () => {
   });
 
   it('uses custom baseUrl when provided', async () => {
-    mockParseStringPromise.mockResolvedValueOnce(mockParsedFeedMultiEntry);
+    getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider({ baseUrl: 'https://custom-arxiv.example.com/api/query' });
     await provider.search({ query: 'test' });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
@@ -295,8 +294,10 @@ describe('createArxivProvider', () => {
     );
   });
 
-  it('handles XML parsing error', async () => {
-    mockParseStringPromise.mockRejectedValueOnce(new Error('XML parse error'));
+  it('handles XML parsing error thrown by XMLParser.parse()', async () => {
+    getMockParse().mockImplementationOnce(() => {
+      throw new Error('XML parse error');
+    });
     const provider = createArxivProvider();
     await expect(provider.search({ query: 'test' })).rejects.toThrow(
       'Arxiv search failed: XML parse error'
@@ -311,50 +312,25 @@ describe('createArxivProvider', () => {
     );
   });
 
-  it('handles axios-like error with response.status and response.data', async () => {
-    const axiosLikeError = {
-      message: 'Axios error',
-      response: {
-        status: 400,
-        data: { error: 'bad params' },
-      },
-    };
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(axiosLikeError));
-    const provider = createArxivProvider();
-    await expect(provider.search({ query: 'test' })).rejects.toThrow('Arxiv API error: 400');
-  });
-
-  it('handles axios-like error with response.status and response.message', async () => {
-    const axiosLikeError = {
-      response: {
-        status: 500,
-        message: 'Internal server error',
-      },
-    };
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(axiosLikeError));
-    const provider = createArxivProvider();
-    await expect(provider.search({ query: 'test' })).rejects.toThrow('Arxiv API error: 500');
-  });
-
-  it('handles axios-like error with only response.status', async () => {
-    const axiosLikeError = {
-      response: {
-        status: 503,
-      },
-    };
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(axiosLikeError));
-    const provider = createArxivProvider();
-    await expect(provider.search({ query: 'test' })).rejects.toThrow('Arxiv API error: 503');
-  });
-
-  it('handles axios-like error with response but no status/data', async () => {
-    const axiosLikeError = {
-      response: {},
-      message: 'test error',
-    };
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(axiosLikeError));
+  it('wraps plain objects thrown as errors', async () => {
+    const plainObject = { message: 'something went wrong' };
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(plainObject));
     const provider = createArxivProvider();
     await expect(provider.search({ query: 'test' })).rejects.toThrow('Arxiv search failed');
+  });
+
+  it('wraps Error subclasses as standard Error message', async () => {
+    class CustomError extends Error {
+      constructor() {
+        super('custom error message');
+        this.name = 'CustomError';
+      }
+    }
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new CustomError()));
+    const provider = createArxivProvider();
+    await expect(provider.search({ query: 'test' })).rejects.toThrow(
+      'Arxiv search failed: custom error message'
+    );
   });
 
   it('handles HttpError with parsedResponseBody', async () => {
@@ -368,22 +344,25 @@ describe('createArxivProvider', () => {
   });
 
   it('falls back to entry id URL when no link at all', async () => {
-    const entryWithNoLink = {
+    getMockParse().mockReturnValueOnce({
       feed: {
-        entry: {
-          id: 'http://arxiv.org/abs/fallback',
-          title: 'No Link Entry',
-          summary: 'summary',
-          'opensearch:totalResults': '1',
-          'opensearch:startIndex': '0',
-          'opensearch:itemsPerPage': '10',
-        },
+        entry: [
+          {
+            id: 'http://arxiv.org/abs/fallback',
+            title: 'No Link Entry',
+            summary: 'summary',
+            published: '2023-01-01',
+            updated: '2023-01-01',
+            author: [],
+            link: [],
+            category: [],
+          },
+        ],
         'opensearch:totalResults': '1',
         'opensearch:startIndex': '0',
         'opensearch:itemsPerPage': '10',
       },
-    };
-    mockParseStringPromise.mockResolvedValueOnce(entryWithNoLink);
+    });
     const provider = createArxivProvider();
     const results = await provider.search({ query: 'test' });
     expect(results[0].url).toBe('http://arxiv.org/abs/fallback');

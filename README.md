@@ -9,7 +9,7 @@ The Search SDK provides a standardized way to interact with various search APIs,
 ## Installation
 
 ```bash
-npm install omnisearch-sdk
+pnpm add omnisearch-sdk
 ```
 
 ## Quick Start

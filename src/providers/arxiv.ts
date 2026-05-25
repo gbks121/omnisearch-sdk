@@ -88,7 +88,7 @@ const arxivXmlParser = new XMLParser({
       'feed.entry.link',
       'feed.entry.category',
     ];
-    return alwaysArray.includes(jpath);
+    return typeof jpath === 'string' && alwaysArray.includes(jpath);
   },
   parseAttributeValue: false,
   trimValues: true,

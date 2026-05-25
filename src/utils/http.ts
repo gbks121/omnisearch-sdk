@@ -1,3 +1,5 @@
+import { ResultAsync, err, ok } from 'neverthrow';
+
 /**
  * HTTP request method types
  */
@@ -18,50 +20,17 @@ export interface HttpRequestOptions {
 }
 
 /**
- * Error thrown when an HTTP request fails
+ * Error class for HTTP request failures
  */
 export class HttpError extends Error {
-  statusCode: number;
-  response?: Response;
-  responseBody?: string;
-  parsedResponseBody?: unknown;
-
-  constructor(message: string, statusCode: number, response?: Response) {
+  constructor(
+    message: string,
+    public readonly statusCode: number,
+    public readonly response?: Response,
+    public readonly responseBody?: unknown
+  ) {
     super(message);
     this.name = 'HttpError';
-    this.statusCode = statusCode;
-    this.response = response;
-  }
-
-  /**
-   * Try to extract and parse the response body for more detailed error information
-   */
-  async parseResponseBody(): Promise<unknown> {
-    if (!this.response) return null;
-
-    try {
-      // Only try to clone and read the body if it hasn't been read yet
-      if (!this.responseBody) {
-        const clonedResponse = this.response.clone();
-        this.responseBody = await clonedResponse.text();
-      }
-
-      // Try to parse as JSON
-      if (this.responseBody) {
-        try {
-          this.parsedResponseBody = JSON.parse(this.responseBody);
-          return this.parsedResponseBody;
-        } catch {
-          // Not JSON, just return the text
-          return this.responseBody;
-        }
-      }
-    } catch (_e) {
-      // If we can't read the body, just return null
-      return null;
-    }
-
-    return null;
   }
 }
 
@@ -71,153 +40,130 @@ export class HttpError extends Error {
 const DEFAULT_TIMEOUT = 15000;
 
 /**
- * Makes an HTTP request to the specified URL with the given options
+ * Makes an HTTP request to the specified URL with the given options, returning a ResultAsync
  *
  * @param url The URL to make the request to
  * @param options Request options including method, headers, body, and timeout
- * @returns Promise that resolves to the response data
+ * @returns ResultAsync that resolves to the response data or an Error/HttpError
  */
-export async function makeRequest<T>(url: string, options: HttpRequestOptions = {}): Promise<T> {
+export function makeRequest<T>(
+  url: string,
+  options: HttpRequestOptions = {}
+): ResultAsync<T, HttpError | Error> {
   const { method = 'GET', headers = {}, body, timeout = DEFAULT_TIMEOUT } = options;
 
-  // Create abort controller for timeout handling
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
+  return ResultAsync.fromPromise(
+    (async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
 
-  try {
-    // Prepare request options
-    const requestOptions: RequestInit = {
-      method,
-      headers: {
-        Accept: 'application/json',
-        ...headers,
-      },
-      signal: controller.signal,
-    };
-
-    // Add body for non-GET requests
-    if (body && method !== 'GET') {
-      if (typeof body === 'object') {
-        requestOptions.body = JSON.stringify(body);
-        // Set content-type if not already set
-        if (!headers['Content-Type']) {
-          requestOptions.headers = {
-            ...requestOptions.headers,
-            'Content-Type': 'application/json',
-          };
-        }
-      } else {
-        requestOptions.body = body as RequestInit['body'];
-      }
-    }
-
-    // Make the request
-    const response = await fetch(url, requestOptions);
-
-    // Handle HTTP errors
-    if (!response.ok) {
-      const httpError = new HttpError(
-        `Request failed with status: ${response.status} ${response.statusText}`,
-        response.status,
-        response
-      );
-
-      // Try to extract response body for more details
       try {
-        const errorDetails = await httpError.parseResponseBody();
-        if (errorDetails) {
-          // If we have JSON error details, add them to the message
-          if (typeof errorDetails === 'object') {
-            const errorObj = errorDetails as Record<string, unknown>;
+        const requestOptions: RequestInit = {
+          method,
+          headers: {
+            Accept: 'application/json',
+            ...headers,
+          },
+          signal: controller.signal,
+        };
 
-            // Try to extract the most meaningful error message
-            let errorMessage: string;
-
-            // For Google API errors
-            if (typeof errorObj.error === 'object' && errorObj.error !== null) {
-              const googleError = errorObj.error as Record<string, unknown>;
-              if (typeof googleError.message === 'string') {
-                errorMessage = googleError.message;
-              } else if (Array.isArray(googleError.errors) && googleError.errors.length > 0) {
-                const firstError = googleError.errors[0] as Record<string, unknown>;
-                errorMessage = `${firstError.reason || 'error'}: ${
-                  firstError.message || 'Unknown error'
-                }`;
-              } else {
-                errorMessage = JSON.stringify(googleError, null, 2);
-              }
+        if (body && method !== 'GET') {
+          if (typeof body === 'object') {
+            requestOptions.body = JSON.stringify(body);
+            if (!headers['Content-Type']) {
+              requestOptions.headers = {
+                ...requestOptions.headers,
+                'Content-Type': 'application/json',
+              };
             }
-            // For standard error messages
-            else if (typeof errorObj.error === 'string') {
-              errorMessage = errorObj.error;
-            } else if (typeof errorObj.message === 'string') {
-              errorMessage = errorObj.message;
-            } else if (typeof errorObj.description === 'string') {
-              errorMessage = errorObj.description;
-            } else {
-              // Stringify the entire object for debugging
-              errorMessage = JSON.stringify(errorDetails, null, 2);
-            }
-
-            httpError.message += ` - ${errorMessage}`;
-          } else if (typeof errorDetails === 'string') {
-            // Add the error text if it's a string
-            httpError.message += ` - ${errorDetails}`;
+          } else {
+            requestOptions.body = body as RequestInit['body'];
           }
         }
-      } catch (_parseError) {
-        // Continue with the original error if we can't parse
+
+        const response = await fetch(url, requestOptions);
+
+        if (!response.ok) {
+          let responseBody: unknown;
+          let bodyText = '';
+          try {
+            bodyText = await response.text();
+            try {
+              responseBody = JSON.parse(bodyText);
+            } catch {
+              responseBody = bodyText;
+            }
+          } catch {
+            responseBody = null;
+          }
+
+          let message = `Request failed with status: ${response.status} ${response.statusText}`;
+          if (typeof responseBody === 'string' && responseBody) {
+            message += ` - ${responseBody}`;
+          } else if (responseBody && typeof responseBody === 'object') {
+            const body = responseBody as any;
+            const extra = body.message || body.error || body.detail || body.error_message || body.errorMessage;
+            if (extra && typeof extra === 'string') {
+              message += ` - ${extra}`;
+            }
+          }
+
+          throw new HttpError(message, response.status, response, responseBody);
+        }
+
+        const contentType = response.headers && typeof response.headers.get === 'function' 
+          ? (response.headers.get('content-type') ?? '')
+          : '';
+          
+        if (contentType.includes('application/json')) {
+          return (await response.json()) as T;
+        } else {
+          const text = await response.text();
+          try {
+            // Try parsing as JSON anyway if it looks like JSON
+            if (typeof text === 'string' && (text.trim().startsWith('{') || text.trim().startsWith('['))) {
+              return JSON.parse(text) as T;
+            }
+          } catch {
+            // Fallback to text
+          }
+          return text as unknown as T;
+        }
+      } finally {
+        clearTimeout(timeoutId);
       }
-
-      throw httpError;
-    }
-
-    // Parse response - try JSON first, fall back to text for non-JSON content-types
-    const contentType = response.headers?.get?.('content-type') ?? '';
-    if (contentType.includes('application/json') || contentType === '') {
-      try {
-        const data = await response.json();
-        return data as T;
-      } catch {
-        // JSON parse failed despite content-type hint — return raw text cast to T
-        const text = await response.text();
-        return text as unknown as T;
+    })(),
+    (e) => {
+      if (e instanceof HttpError) return e;
+      if (e instanceof Error) {
+        if (e.name === 'AbortError') {
+          return new Error(`Request timed out after ${timeout}ms`);
+        }
+        return e;
       }
-    } else {
-      const text = await response.text();
-      return text as unknown as T;
+      return new Error(String(e));
     }
-  } catch (error) {
-    // Handle timeout errors
-    if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error(`Request timed out after ${timeout}ms`);
-    }
-
-    // Re-throw other errors
-    throw error;
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  );
 }
 
 /**
  * Makes a GET request to the specified URL
  */
-export async function get<T>(
+export function get<T>(
   url: string,
   options: Omit<HttpRequestOptions, 'method'> = {}
-): Promise<T> {
+): ResultAsync<T, HttpError | Error> {
   return makeRequest<T>(url, { ...options, method: 'GET' });
 }
 
 /**
  * Makes a POST request to the specified URL
  */
-export async function post<T>(
+export function post<T>(
   url: string,
   body: unknown,
   options: Omit<HttpRequestOptions, 'method' | 'body'> = {}
-): Promise<T> {
+): ResultAsync<T, HttpError | Error> {
   return makeRequest<T>(url, { ...options, method: 'POST', body });
 }
 
@@ -234,7 +180,6 @@ export function buildUrl(
 
   const url = new URL(baseUrl);
 
-  // Add query parameters to URL
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null) {
       url.searchParams.append(key, String(value));

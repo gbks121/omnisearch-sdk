@@ -1,24 +1,24 @@
+import { ResultAsync } from 'neverthrow';
+import { z } from 'zod';
+
+/**
+ * Zod schema for SearchResult
+ */
+export const SearchResultSchema = z.object({
+  url: z.string().url(),
+  title: z.string(),
+  snippet: z.string().optional(),
+  content: z.string().optional(),
+  domain: z.string().optional(),
+  publishedDate: z.string().optional(),
+  provider: z.string(),
+  raw: z.unknown().optional(),
+});
+
 /**
  * Represents a web search result returned by any search provider
  */
-export interface SearchResult {
-  /** URL of the search result */
-  url: string;
-  /** Title of the web page */
-  title: string;
-  /** Snippet/description of the web page */
-  snippet?: string;
-  /** Full content or combined excerpts for fuller text */
-  content?: string;
-  /** The source website domain */
-  domain?: string;
-  /** When the result was published or last updated */
-  publishedDate?: string;
-  /** The search provider that returned this result */
-  provider: string;
-  /** Raw response data from the provider */
-  raw?: unknown;
-}
+export type SearchResult = z.infer<typeof SearchResultSchema>;
 
 /**
  * Debug options for the search SDK
@@ -39,7 +39,7 @@ export interface DebugOptions {
  */
 export interface SearchOptions {
   /** The search query text */
-  query?: string; // Made optional as Arxiv can use idList instead
+  query?: string;
   /** (Arxiv specific) A comma-delimited list of Arxiv IDs to fetch. */
   idList?: string;
   /** Maximum number of results to return */
@@ -48,20 +48,22 @@ export interface SearchOptions {
   language?: string;
   /** Country/region for results */
   region?: string;
-  /** Safe search setting (Not universally applicable, e.g. Arxiv) */
+  /** Safe search setting */
   safeSearch?: 'off' | 'moderate' | 'strict';
-  /** Result page number (for pagination) - some providers might use offset instead */
+  /** Result page number */
   page?: number;
-  /** (Arxiv specific) The starting index for results (pagination offset). */
+  /** Pagination offset (Arxiv specific) */
   start?: number;
-  /** (Arxiv specific) Sort order for results. */
+  /** Sort order (Arxiv specific) */
   sortBy?: 'relevance' | 'lastUpdatedDate' | 'submittedDate';
-  /** (Arxiv specific) Sort direction. */
+  /** Sort direction (Arxiv specific) */
   sortOrder?: 'ascending' | 'descending';
   /** Custom timeout in milliseconds */
   timeout?: number;
   /** Debug options */
   debug?: DebugOptions;
+  /** Retry options for p-retry */
+  retries?: number;
 }
 
 /**
@@ -70,8 +72,8 @@ export interface SearchOptions {
 export interface SearchProvider {
   /** Name of the search provider */
   name: string;
-  /** Search method implementation */
-  search: (options: SearchOptions) => Promise<SearchResult[]>;
+  /** Search method implementation returning a ResultAsync */
+  search: (options: SearchOptions) => ResultAsync<SearchResult[], Error>;
   /** API configuration for the provider */
   config: ProviderConfig;
 }
@@ -81,9 +83,15 @@ export interface SearchProvider {
  */
 export interface ProviderConfig {
   /** API key or token */
-  apiKey?: string; // Made optional
+  apiKey?: string;
   /** Base URL for API requests */
   baseUrl?: string;
+  /** Custom timeout in milliseconds (default: 30000) */
+  timeout?: number;
+  /** Throttle: number of requests allowed within a specific interval */
+  throttleLimit?: number;
+  /** Throttle: interval in milliseconds for the limit (default: 1000) */
+  throttleInterval?: number;
   /** Additional provider-specific options */
   [key: string]: unknown;
 }
@@ -92,6 +100,8 @@ export interface ProviderConfig {
  * Options for the main webSearch function
  */
 export interface WebSearchOptions extends SearchOptions {
-  /** Array of search providers to query in parallel */
+  /** Array of search providers to query */
   provider: SearchProvider[];
+  /** Max concurrency for p-map */
+  concurrency?: number;
 }

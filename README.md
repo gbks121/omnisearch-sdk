@@ -1,421 +1,157 @@
-# omnisearch-sdk
+# OmniSearch SDK
 
-A unified TypeScript SDK for integrating with multiple web search providers through a single, consistent interface.
+A unified, high-performance TypeScript SDK for web search providers.
 
-## Overview
+Inspired by [PlustOrg/search-sdk](https://github.com/PlustOrg/search-sdk), this version is a **complete overhaul and redesign** focused on enterprise-grade reliability, functional error handling, and robust concurrency.
 
-The Search SDK provides a standardized way to interact with various search APIs, allowing developers to easily switch between providers or use multiple providers simultaneously without changing application code.
+## ✨ Key Enhancements
 
-## Installation
+- **Functional Error Handling**: Powered by [`neverthrow`](https://github.com/supermacro/neverthrow) for type-safe error paths without unexpected exceptions.
+- **Smart Retries**: Integrated exponential backoff via [`p-retry`](https://github.com/sindresorhus/p-retry) for 429 (Rate Limit) and 5xx errors.
+- **Deadlines & Throttling**: Hard timeouts per request via [`p-timeout`](https://github.com/sindresorhus/p-timeout) and proactive rate limiting with [`p-throttle`](https://github.com/sindresorhus/p-throttle).
+- **Strict Validation**: Type safety with Zod for all provider responses.
+- **Modern ESM**: First-class support for ES Modules and Node 18+.
+- **Standardized Architecture**: All providers share a common factory, ensuring consistent behavior and troubleshooting.
+
+## 🚀 Quick Start
+
+### Installation
 
 ```bash
 pnpm add omnisearch-sdk
+# or
+npm install omnisearch-sdk
 ```
 
-## Quick Start
+### Basic Usage
+
+The `webSearch` function provides a simplified, aggregate interface for querying multiple providers at once.
 
 ```typescript
-import { google, webSearch } from 'omnisearch-sdk';
+import { webSearch, google, brave } from 'omnisearch-sdk';
 
-// Configure the Google search provider with your API key and Search Engine ID
-const configuredGoogle = google.configure({
-  apiKey: 'YOUR_GOOGLE_API_KEY',
-  cx: 'YOUR_SEARCH_ENGINE_ID',
-});
+// Configure providers with your API keys
+google.configure({ apiKey: 'YOUR_GOOGLE_API_KEY', searchEngineId: 'YOUR_CX' });
+brave.configure({ apiKey: 'YOUR_BRAVE_API_KEY' });
 
-// Search using the configured provider
 async function search() {
-  const results = await webSearch({
-    query: 'TypeScript SDK',
-    maxResults: 5,
-    provider: [configuredGoogle], // Provider is now an array
-  });
+  try {
+    const results = await webSearch({
+      query: 'TypeScript functional programming',
+      provider: [google, brave],
+      maxResults: 10,
+    });
 
-  console.log(results);
+    console.log(results);
+  } catch (error) {
+    // webSearch throws if ALL providers fail
+    console.error('Search failed:', error.message);
+  }
 }
-
-search();
 ```
 
-### Using Multiple Providers
+## 🛠️ Supported Providers
 
-You can query multiple search providers simultaneously for better coverage and reliability:
+| Provider | Export | Requirements |
+| :--- | :--- | :--- |
+| **Google** | `google` | API Key & Search Engine ID |
+| **Brave** | `brave` | API Key |
+| **Exa** | `exa` | API Key |
+| **Tavily** | `tavily` | API Key |
+| **SerpAPI** | `serpapi` | API Key |
+| **Perplexity** | `perplexity` | API Key |
+| **SearXNG** | `searxng` | Instance URL |
+| **Arxiv** | `arxiv` | None |
+| **DuckDuckGo** | `duckduckgo` | None (Scraping) |
+| **Parallel** | `parallel` | Meta-provider |
+
+## 🧩 Advanced Usage
+
+### Working with Results (Functional Style)
+
+Internal providers return `ResultAsync` objects. This allows you to handle errors explicitly without `try/catch` blocks.
 
 ```typescript
-import { google, brave, webSearch } from 'omnisearch-sdk';
+import { google } from 'omnisearch-sdk';
 
-const googleProvider = google.configure({
-  apiKey: 'YOUR_GOOGLE_API_KEY',
-  cx: 'YOUR_SEARCH_ENGINE_ID',
-});
+const result = await google.search({ query: 'Hello World' });
 
-const braveProvider = brave.configure({
-  apiKey: 'YOUR_BRAVE_API_KEY',
-});
-
-// Search with multiple providers in parallel
-async function search() {
-  const results = await webSearch({
-    query: 'TypeScript SDK',
-    maxResults: 10,
-    provider: [googleProvider, braveProvider], // Multiple providers
-  });
-
-  // Results from all successful providers are combined
-  console.log(`Found ${results.length} total results`);
+if (result.isOk()) {
+  console.log('Results:', result.value); // result.value is SearchResult[]
+} else {
+  // result.error is a standardized Error object
+  console.error('Provider error:', result.error.message);
 }
-
-search();
 ```
 
-**Benefits of using multiple providers:**
+### Configuration & Retries
 
-- **Fail-soft behavior**: If one provider fails, others can still return results
-- **Better coverage**: Combine results from multiple sources
-- **Redundancy**: Protection against API downtime or rate limits
-
-## Key Features
-
-- Unified API for working with multiple search providers
-- Standardized result format across all providers
-- Comprehensive type safety with TypeScript
-- Configurable search parameters (pagination, safe search, language, etc.)
-- Detailed error handling with provider-specific troubleshooting
-- Built-in debugging capabilities
-
-## Supported Search Providers
-
-The SDK currently supports the following search APIs:
-
-- [Google Custom Search](https://developers.google.com/custom-search/v1/overview)
-- [SerpAPI](https://serpapi.com/)
-- [Brave Search](https://brave.com/search/api/)
-- [Exa](https://exa.ai/)
-- [Tavily](https://tavily.com/)
-- [Custom SearXNG](https://docs.searxng.org/)
-- [Arxiv](https://arxiv.org/)
-- [DuckDuckGo](https://duckduckgo.com/)
-- [Perplexity](https://docs.perplexity.ai/)
-- [Parallel](https://docs.parallel.ai/)
-
-## Provider Configuration
-
-Each search provider needs to be configured before use:
-
-### Google Custom Search
+All providers support a global configuration and per-request overrides.
 
 ```typescript
-import { google, webSearch } from 'omnisearch-sdk';
-
-const googleProvider = google.configure({
-  apiKey: 'YOUR_GOOGLE_API_KEY',
-  cx: 'YOUR_SEARCH_ENGINE_ID',
-});
-
-const results = await webSearch({
-  query: 'React hooks tutorial',
-  maxResults: 10,
-  provider: [googleProvider],
-});
-```
-
-### SerpAPI
-
-```typescript
-import { serpapi, webSearch } from 'omnisearch-sdk';
-
-const serpProvider = serpapi.configure({
-  apiKey: 'YOUR_SERPAPI_KEY',
-  engine: 'google', // Optional, defaults to 'google'
-});
-
-const results = await webSearch({
-  query: 'TypeScript best practices',
-  maxResults: 10,
-  provider: [serpProvider],
-});
-```
-
-### Brave Search
-
-Brave Search supports multiple search types: Web & News.
-
-```typescript
-import { brave, webSearch } from 'omnisearch-sdk';
-
-// Default web search
-const webProvider = brave.configure({
-  apiKey: 'YOUR_BRAVE_API_KEY',
-  searchType: 'web', // Optional, defaults to 'web'
-});
-
-const webResults = await webSearch({
-  query: 'privacy-focused browsers',
-  maxResults: 10,
-  safeSearch: 'moderate',
-  provider: [webProvider],
-});
-
-// News search
-const newsProvider = brave.configure({
-  apiKey: 'YOUR_BRAVE_API_KEY',
-  searchType: 'news',
-});
-
-const newsResults = await webSearch({
-  query: 'technology trends',
-  maxResults: 10,
-  provider: [newsProvider],
-});
-```
-
-### Exa
-
-```typescript
-import { exa, webSearch } from 'omnisearch-sdk';
-
-const exaProvider = exa.configure({
-  apiKey: 'YOUR_EXA_API_KEY',
-  model: 'keyword', // Optional, defaults to 'keyword'
-  includeContents: true, // Optional, defaults to false
-});
-
-const results = await webSearch({
-  query: 'machine learning papers',
-  provider: [exaProvider],
-});
-```
-
-### Tavily
-
-```typescript
-import { tavily, webSearch } from 'omnisearch-sdk';
-
-const tavilyProvider = tavily.configure({
-  apiKey: 'YOUR_TAVILY_API_KEY',
-  searchDepth: 'comprehensive', // Optional, defaults to 'basic'
-  includeAnswer: true, // Optional, defaults to false
-});
-
-const results = await webSearch({
-  query: 'climate change evidence',
-  maxResults: 15,
-  provider: [tavilyProvider],
-});
-```
-
-### SearXNG
-
-```typescript
-import { searxng, webSearch } from 'omnisearch-sdk';
-
-const searxngProvider = searxng.configure({
-  baseUrl: 'http://127.0.0.1:8080/search',
-  additionalParams: {
-    // Optional additional parameters for SearXNG
-    categories: 'general',
-    engines: 'google,brave,duckduckgo',
-  },
-  apiKey: '', // Not needed for most SearXNG instances
-});
-
-const results = await webSearch({
-  query: 'open source software',
-  provider: [searxngProvider],
-});
-```
-
-### DuckDuckGo
-
-```typescript
-import { duckduckgo, webSearch } from 'omnisearch-sdk';
-
-// DuckDuckGo doesn't require an API key, but you can configure other options
-const duckduckgoProvider = duckduckgo.configure({
-  searchType: 'text', // Optional: 'text', 'images', or 'news'
-  useLite: false, // Optional: use lite version for lower bandwidth
-  region: 'wt-wt', // Optional: region code
-});
-
-// Text search
-const textResults = await webSearch({
-  query: 'privacy focused search',
-  maxResults: 10,
-  provider: [duckduckgoProvider],
-});
-
-// Image search
-const imageProvider = duckduckgo.configure({ searchType: 'images' });
-const imageResults = await webSearch({
-  query: 'landscape photography',
-  maxResults: 10,
-  provider: [imageProvider],
-});
-
-// News search
-const newsProvider = duckduckgo.configure({ searchType: 'news' });
-const newsResults = await webSearch({
-  query: 'latest technology',
-  maxResults: 10,
-  provider: [newsProvider],
-});
-```
-
-### Arxiv
-
-Arxiv is a repository of electronic preprints of scientific papers. It does not require an API key for its public API.
-
-```typescript
-import { arxiv, webSearch } from 'omnisearch-sdk';
-
-// Arxiv doesn't require an API key, but you can configure other options.
-const arxivProvider = arxiv.configure({
-  sortBy: 'relevance', // Optional: 'relevance', 'lastUpdatedDate', 'submittedDate'
-  sortOrder: 'descending', // Optional: 'ascending', 'descending'
-});
-
-const results = await webSearch({
-  query: 'cat:cs.AI AND ti:transformer', // Example: Search for "transformer" in title within Computer Science AI category
-  // Alternatively, search by ID list:
-  // idList: '2305.12345v1,2203.01234v2',
-  provider: [arxivProvider],
+google.configure({
+  apiKey: '...',
+  retries: 3, // Defaults to 2
   maxResults: 5,
 });
+
+// Request-specific override
+await google.search({ query: '...', maxResults: 10 });
 ```
 
-### Perplexity
+### Timeouts & Throttling
+
+Control request deadlines and prevent rate limiting at the source.
 
 ```typescript
-import { perplexity, webSearch } from 'omnisearch-sdk';
+import { google } from 'omnisearch-sdk';
 
-const perplexityProvider = perplexity.configure({
-  apiKey: 'YOUR_PERPLEXITY_API_KEY',
-  maxTokens: 25000, // Optional: maximum total tokens of webpage content returned
-  maxTokensPerPage: 2048, // Optional: maximum tokens retrieved from each webpage
-  country: 'US' // Optional: country code to filter results by location. Use ISO 3166-1 alpha-2 country codes.
-  searchDomainFilter: ["science.org", "pnas.org", "-reddit.com"] // Optional: list of domains/URLs to limit search results to (max 20). You can also exclude specific domains from search results. (e.g.,  ["science.org", "pnas.org", "-reddit.com"])
-  searchRecencyFilter: 'week', // Optional: filter by recency (day, week, month, year)
-  searchAfterDate: "3/1/2025", // Optional: filter results after a specific date (format: MM/DD/YYYY)
-  searchBeforeDate: "3/5/2025" // Optional: filter results before a specific date (format: MM/DD/YYYY)
-  searchLanguageFilter: ["en", "fr", "de"], // Optional: filter by language using ISO 639-1 codes
+google.configure({
+  apiKey: '...',
+  // Global timeout for all requests to this provider
+  timeout: 5000, 
+  // Proactive rate limiting: 5 requests per 2 seconds
+  throttleLimit: 5,
+  throttleInterval: 2000 
 });
+
+// You can also override timeout per request
+await google.search({ 
+  query: 'TypeScript', 
+  timeout: 2000 
+});
+```
+
+### Debugging
+
+Enable logging to see exactly what's happening under the hood.
+
+```typescript
+import { webSearch } from 'omnisearch-sdk';
 
 const results = await webSearch({
-  query: 'latest developments in artificial intelligence',
-  maxResults: 10,
-  provider: [perplexityProvider]
+  query: '...',
+  provider: [google],
+  debug: {
+    enabled: true,
+    logResponse: true // Logs raw responses for troubleshooting
+  }
 });
 ```
 
-### Parallel
+## 🏗️ Development
 
-```typescript
-import { parallel, webSearch } from 'omnisearch-sdk';
+```bash
+# Install dependencies
+pnpm install
 
-const parallelProvider = parallel.configure({
-  apiKey: 'YOUR_PARALLEL_API_KEY',
-  mode: 'one-shot', // Optional: 'one-shot' for comprehensive results (default) or 'agentic' for token-efficient results
-  maxResults: 10, // Optional: maximum number of results (may be limited by processor)
-  includeDomains: ['wikipedia.org', '.edu'], // Optional: list of domains to restrict results to
-  excludeDomains: ['reddit.com', '.ai'], // Optional: list of domains to exclude from results
-  afterDate: '2024-01-01', // Optional: filter results after this date (YYYY-MM-DD format)
-  beforeDate: '2024-12-31', // Optional: filter results before this date (YYYY-MM-DD format)
-  maxCharsPerResult: 1000, // Optional: maximum characters per excerpt
-  excerptCount: 3, // Optional: number of excerpts per result
-  fetchStrategy: 'cached', // Optional: 'cached' for faster results or 'live' for fresher content
-});
+# Run tests
+pnpm test
 
-const results = await webSearch({
-  query: 'What were the major breakthroughs in quantum computing in 2024?',
-  maxResults: 10,
-  provider: [parallelProvider],
-});
+# Build for distribution (CJS, ESM, DTS)
+pnpm run build
 ```
 
-## Common Search Options
-
-The `webSearch` function accepts these standard options across all providers:
-
-| Option       | Type                                                | Description                                                                                                                      |
-| ------------ | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `query`      | string                                              | The search query text. For Arxiv, this can be a complex query using field prefixes (e.g., `au:del_maestro AND ti:checkerboard`). |
-| `idList`     | string                                              | (Arxiv specific) A comma-delimited list of Arxiv IDs to fetch.                                                                   |
-| `maxResults` | number                                              | Maximum number of results to return.                                                                                             |
-| `language`   | string                                              | Language code for results (e.g., 'en')                                                                                           |
-| `region`     | string                                              | Country/region code (e.g., 'US'). For DuckDuckGo, use format like 'wt-wt', 'us-en'.                                              |
-| `safeSearch` | 'off' \| 'moderate' \| 'strict'                     | Content filtering level (Not applicable to Arxiv). For DuckDuckGo, 'moderate' is default.                                        |
-| `page`       | number                                              | Result page number (for pagination). Arxiv uses `start` (offset) instead.                                                        |
-| `start`      | number                                              | (Arxiv specific) The starting index for results (pagination offset).                                                             |
-| `sortBy`     | 'relevance' \| 'lastUpdatedDate' \| 'submittedDate' | (Arxiv specific) Sort order for results.                                                                                         |
-| `sortOrder`  | 'ascending' \| 'descending'                         | (Arxiv specific) Sort direction.                                                                                                 |
-| `searchType` | 'text' \| 'images' \| 'news'                        | (DuckDuckGo specific) The type of search to perform.                                                                             |
-| `timeout`    | number                                              | Request timeout in milliseconds.                                                                                                 |
-
-## Search Result Format
-
-All providers return results in this standardized format:
-
-```typescript
-interface SearchResult {
-  url: string; // The URL of the search result
-  title: string; // Title of the web page
-  snippet?: string; // Brief description or excerpt
-  domain?: string; // The source website domain
-  publishedDate?: string; // When the content was published
-  provider?: string; // The search provider that returned this result
-  raw?: unknown; // Raw provider-specific data
-}
-```
-
-## Debugging
-
-The SDK includes built-in debugging capabilities to help diagnose issues:
-
-```typescript
-import { google, webSearch } from 'omnisearch-sdk';
-
-const googleProvider = google.configure({
-  apiKey: 'YOUR_GOOGLE_API_KEY',
-  cx: 'YOUR_SEARCH_ENGINE_ID',
-});
-
-const results = await webSearch({
-  query: 'TypeScript SDK',
-  provider: [googleProvider],
-  debug: { enabled: true, logRequests: true, logResponses: true },
-});
-```
-
-## Error Handling
-
-The SDK provides detailed error messages with troubleshooting suggestions:
-
-```text
-Search with provider 'google' failed: Google search failed: Request failed with status: 400 Bad Request - Invalid Value
-
-Troubleshooting: This is likely due to invalid request parameters. Check your query and other search options. Make sure your Google API key is valid and has the Custom Search API enabled. Also check if your Search Engine ID (cx) is correct.
-```
-
-## API Reference
-
-### Main Function
-
-#### `webSearch(options: WebSearchOptions): Promise<SearchResult[]>`
-
-Performs a web search using the specified provider and options.
-
-```typescript
-const results = await webSearch({
-  query: 'TypeScript tutorial',
-  maxResults: 10,
-  language: 'en',
-  region: 'US',
-  safeSearch: 'moderate',
-  page: 1,
-  provider: [googleProvider],
-});
-```
-
-## License
+## 📜 License
 
 MIT

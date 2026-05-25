@@ -1,6 +1,7 @@
 import { SearchOptions, SearchProvider, SearchResult, ProviderConfig } from '../types';
-import { post, HttpError } from '../utils/http';
+import { post, createBaseProvider } from '../utils';
 import { debug } from '../utils/debug';
+import { err } from 'neverthrow';
 
 /**
  * Parallel Search API response types
@@ -130,9 +131,24 @@ export function createParallelProvider(config: ParallelConfig): SearchProvider {
 
   const baseUrl = config.baseUrl || DEFAULT_BASE_URL;
 
-  return {
+  return createBaseProvider({
     name: 'parallel',
     config,
+    getTroubleshooting: (_error: Error, statusCode?: number) => {
+      if (statusCode === 401 || statusCode === 403) {
+        return "Authentication failed or Access denied. Check your apiKey and make sure it's valid and has the correct permissions.";
+      }
+      if (statusCode === 400) {
+        return 'Bad request. This is likely due to invalid request parameters. Check your query and other search options.';
+      }
+      if (statusCode === 429) {
+        return "Rate limit exceeded. You've exceeded the rate limit for this API. Try again later or reduce your request frequency.";
+      }
+      if (statusCode && statusCode >= 500) {
+        return 'Server error. The search provider is experiencing issues. Try again later.';
+      }
+      return '';
+    },
     search: async (options: SearchOptions): Promise<SearchResult[]> => {
       const { query, maxResults = 10, timeout, debug: debugOptions } = options;
 
@@ -218,141 +234,67 @@ export function createParallelProvider(config: ParallelConfig): SearchProvider {
       // We've already validated that apiKey exists at the start of createParallelProvider
       const apiKey = config.apiKey as string;
 
-      try {
-        const response = await post<ParallelSearchResponse>(baseUrl, requestBody, {
-          headers: {
-            'x-api-key': apiKey,
-            'Content-Type': 'application/json',
-            'parallel-beta': PARALLEL_BETA_HEADER,
-          },
-          timeout,
+      const result = await post<ParallelSearchResponse>(baseUrl, requestBody, {
+        headers: {
+          'x-api-key': apiKey,
+          'Content-Type': 'application/json',
+          'parallel-beta': PARALLEL_BETA_HEADER,
+        },
+        timeout,
+      });
+      if (result.isErr()) throw result.error;
+      const response = result.value;
+
+      // Log response if debugging is enabled
+      debug.logResponse(debugOptions, 'Parallel Search raw response', {
+        status: 'success',
+        itemCount: response.results?.length || 0,
+        searchId: response.search_id || '',
+        warnings: response.warnings || [],
+        usage: response.usage || [],
+      });
+
+      // Log warnings if present
+      if (response.warnings && response.warnings.length > 0) {
+        debug.log(debugOptions, 'Parallel Search warnings', {
+          warnings: response.warnings,
         });
-
-        // Log response if debugging is enabled
-        debug.logResponse(debugOptions, 'Parallel Search raw response', {
-          status: 'success',
-          itemCount: response.results?.length || 0,
-          searchId: response.search_id || '',
-          warnings: response.warnings || [],
-          usage: response.usage || [],
-        });
-
-        // Log warnings if present
-        if (response.warnings && response.warnings.length > 0) {
-          debug.log(debugOptions, 'Parallel Search warnings', {
-            warnings: response.warnings,
-          });
-        }
-
-        if (!response.results || response.results.length === 0) {
-          debug.log(debugOptions, 'Parallel Search returned no results');
-          return [];
-        }
-
-        // Transform Parallel response to standard SearchResult format
-        return response.results.map((result) => {
-          // Extract domain from URL
-          let domain;
-          try {
-            domain = new URL(result.url).hostname;
-          } catch {
-            domain = undefined;
-          }
-
-          // Join excerpts array for snippet and content
-          // Use first excerpt for snippet if available, join all for content
-          const excerpts = result.excerpts || [];
-          const snippet = excerpts.length > 0 ? excerpts[0] : undefined;
-          const content = excerpts.length > 0 ? excerpts.join('\n\n') : undefined;
-
-          return {
-            url: result.url,
-            title: result.title || 'No title available',
-            snippet,
-            content,
-            domain,
-            publishedDate: result.publish_date,
-            provider: 'parallel',
-            raw: result,
-          };
-        });
-      } catch (error) {
-        // Create detailed error message with diagnostic information
-        let errorMessage = 'Parallel search failed';
-        let diagnosticInfo = '';
-
-        if (error instanceof HttpError) {
-          // Handle specific Parallel API error codes
-          if (error.statusCode === 401) {
-            diagnosticInfo = 'Invalid API key. Check your Parallel API key.';
-          } else if (error.statusCode === 403) {
-            diagnosticInfo =
-              'Access denied. Your Parallel API key may have insufficient permissions or has expired.';
-          } else if (error.statusCode === 429) {
-            diagnosticInfo =
-              'Rate limit exceeded. You have reached your Parallel API quota or sent too many requests.';
-          } else if (error.statusCode === 400) {
-            diagnosticInfo = 'Bad request. Check your search parameters.';
-
-            // Try to extract more detailed error info
-            if (error.message.includes('objective') || error.message.includes('search_queries')) {
-              diagnosticInfo += ' At least one of objective or search_queries must be provided.';
-            } else if (error.message.includes('max_results')) {
-              diagnosticInfo += ' Invalid max_results value.';
-            } else if (error.message.includes('source_policy')) {
-              diagnosticInfo +=
-                ' Invalid source_policy configuration. Check domain and date formats.';
-            }
-          } else if (error.statusCode === 422) {
-            diagnosticInfo = 'Validation error. The request parameters failed validation checks.';
-
-            // Try to extract more detailed error info
-            if (error.message.includes('date')) {
-              diagnosticInfo +=
-                ' Invalid date format. Use RFC 3339 date format (YYYY-MM-DD) for afterDate/beforeDate.';
-            } else if (error.message.includes('domain')) {
-              diagnosticInfo += ' Invalid domain format in includeDomains or excludeDomains.';
-            } else if (error.message.includes('mode')) {
-              diagnosticInfo += ' Invalid mode value. Use "one-shot" or "agentic".';
-            } else if (error.message.includes('strategy')) {
-              diagnosticInfo += ' Invalid fetch strategy. Use "cached" or "live".';
-            }
-          } else if (error.statusCode >= 500) {
-            diagnosticInfo =
-              'Parallel server error. The service might be experiencing issues. Try again later.';
-          }
-
-          errorMessage = `${errorMessage}: ${error.message}`;
-        } else if (error instanceof Error) {
-          errorMessage = `${errorMessage}: ${error.message}`;
-
-          // Check for common error messages
-          if (error.message.includes('api_key') || error.message.includes('apiKey')) {
-            diagnosticInfo = 'Authentication issue. Check your Parallel API key.';
-          } else if (error.message.includes('timeout')) {
-            diagnosticInfo =
-              'The request timed out. Try increasing the timeout value or simplifying your query.';
-          }
-        } else {
-          errorMessage = `${errorMessage}: ${String(error)}`;
-        }
-
-        // Add diagnostic info if available
-        if (diagnosticInfo) {
-          errorMessage = `${errorMessage}\n\nDiagnostic information: ${diagnosticInfo}\n\nParallel API docs: https://api.parallel.ai`;
-        }
-
-        // Log detailed error information if debugging is enabled
-        debug.log(debugOptions, 'Parallel Search error', {
-          error: error instanceof Error ? error.message : String(error),
-          statusCode: error instanceof HttpError ? error.statusCode : undefined,
-          diagnosticInfo,
-        });
-
-        throw new Error(errorMessage);
       }
+
+      if (!response.results || response.results.length === 0) {
+        debug.log(debugOptions, 'Parallel Search returned no results');
+        return [];
+      }
+
+      // Transform Parallel response to standard SearchResult format
+      return response.results.map((result) => {
+        // Extract domain from URL
+        let domain;
+        try {
+          domain = new URL(result.url).hostname;
+        } catch {
+          domain = undefined;
+        }
+
+        // Join excerpts array for snippet and content
+        // Use first excerpt for snippet if available, join all for content
+        const excerpts = result.excerpts || [];
+        const snippet = excerpts.length > 0 ? excerpts[0] : undefined;
+        const content = excerpts.length > 0 ? excerpts.join('\n\n') : undefined;
+
+        return {
+          url: result.url,
+          title: result.title || 'No title available',
+          snippet,
+          content,
+          domain,
+          publishedDate: result.publish_date,
+          provider: 'parallel',
+          raw: result,
+        };
+      });
     },
-  };
+  });
 }
 
 /**
@@ -375,8 +317,10 @@ export const parallel = {
    * Search implementation that ensures provider is properly configured before use
    */
   search: async (_options: SearchOptions): Promise<SearchResult[]> => {
-    throw new Error(
-      'Parallel search provider must be configured before use. Call parallel.configure() first.'
-    );
+    return err(
+      new Error(
+        'Parallel search provider must be configured before use. Call parallel.configure() first.'
+      )
+    ) as any;
   },
 };

@@ -1,6 +1,7 @@
 import { SearchOptions, SearchProvider, SearchResult, ProviderConfig } from '../types';
-import { buildUrl, get, HttpError } from '../utils/http';
+import { buildUrl, get, createBaseProvider } from '../utils';
 import { debug } from '../utils/debug';
+import { err } from 'neverthrow';
 
 /**
  * SerpAPI response types for Google search engine
@@ -79,9 +80,27 @@ export function createSerpApiProvider(config: SerpApiConfig): SearchProvider {
   const baseUrl = config.baseUrl || DEFAULT_BASE_URL;
   const engine = config.engine || 'google';
 
-  return {
+  return createBaseProvider({
     name: 'serpapi',
     config,
+    getTroubleshooting: (error: Error, statusCode?: number) => {
+      if (error.message.includes('apiKey')) {
+        return 'Authentication failed. Check that your SerpAPI key is valid. Verify that you have enough credits remaining in your SerpAPI account.';
+      }
+      if (statusCode === 401 || statusCode === 403) {
+        return "Authentication failed or Access denied. Check your apiKey and make sure it's valid and has the correct permissions.";
+      }
+      if (statusCode === 400) {
+        return 'Bad request. This is likely due to invalid request parameters. Check your query and other search options.';
+      }
+      if (statusCode === 429) {
+        return "Rate limit exceeded. You've exceeded the rate limit for this API. Try again later or reduce your request frequency.";
+      }
+      if (statusCode && statusCode >= 500) {
+        return 'Server error. The search provider is experiencing issues. Try again later.';
+      }
+      return '';
+    },
     search: async (options: SearchOptions): Promise<SearchResult[]> => {
       const {
         query,
@@ -131,99 +150,46 @@ export function createSerpApiProvider(config: SerpApiConfig): SearchProvider {
         },
       });
 
-      try {
-        const response = await get<SerpApiResponse>(url, { timeout });
+      const result = await get<SerpApiResponse>(url, { timeout });
+      if (result.isErr()) throw result.error;
+      const response = result.value;
 
-        // Log response if debugging is enabled
-        debug.logResponse(debugOptions, 'SerpAPI raw response', {
-          status: response.error ? 'error' : 'success',
-          itemCount: response.organic_results?.length || 0,
-          totalResults: response.search_information?.total_results || 0,
-          metadata: response.search_metadata,
-        });
+      // Log response if debugging is enabled
+      debug.logResponse(debugOptions, 'SerpAPI raw response', {
+        status: response.error ? 'error' : 'success',
+        itemCount: response.organic_results?.length || 0,
+        totalResults: response.search_information?.total_results || 0,
+        metadata: response.search_metadata,
+      });
 
-        if (response.error) {
-          throw new Error(`SerpAPI error: ${response.error}`);
-        }
-
-        if (!response.organic_results || response.organic_results.length === 0) {
-          debug.log(debugOptions, 'SerpAPI returned no results');
-          return [];
-        }
-
-        // Transform SerpAPI response to standard SearchResult format
-        return response.organic_results
-          .filter((result) => result.link && result.title)
-          .map((result) => {
-            // Extract domain from displayed_link
-            const domain = result.displayed_link?.split('/')[0] || undefined;
-
-            return {
-              url: result.link,
-              title: result.title,
-              snippet: result.snippet || undefined,
-              domain,
-              publishedDate: result.date,
-              provider: 'serpapi',
-              raw: result,
-            };
-          });
-      } catch (error) {
-        // Create detailed error message with diagnostic information
-        let errorMessage = 'SerpAPI search failed';
-        let diagnosticInfo = '';
-
-        if (error instanceof HttpError) {
-          // Handle specific SerpAPI error codes
-          if (error.statusCode === 401 || error.statusCode === 403) {
-            diagnosticInfo = 'Invalid API key or unauthorized access. Check your SerpAPI key.';
-          } else if (error.statusCode === 429) {
-            diagnosticInfo =
-              'Rate limit exceeded. You have reached your SerpAPI usage limit. Check your subscription plan.';
-          } else if (error.statusCode === 400) {
-            diagnosticInfo =
-              'Bad request. Check your search parameters, especially the engine value.';
-
-            // Try to extract more detailed error info
-            if (error.message.includes('parameter is missing')) {
-              diagnosticInfo += ' A required parameter is missing from your request.';
-            }
-          } else if (error.statusCode >= 500) {
-            diagnosticInfo =
-              'SerpAPI server error. The service might be experiencing issues. Try again later.';
-          }
-
-          errorMessage = `${errorMessage}: ${error.message}`;
-        } else if (error instanceof Error) {
-          errorMessage = `${errorMessage}: ${error.message}`;
-
-          // Check for common error messages
-          if (error.message.includes('API key')) {
-            diagnosticInfo = 'Invalid or missing API key. Check your SerpAPI key.';
-          } else if (error.message.includes('quota') || error.message.includes('limit')) {
-            diagnosticInfo =
-              'You have reached your SerpAPI usage limit. Check your subscription plan.';
-          }
-        } else {
-          errorMessage = `${errorMessage}: ${String(error)}`;
-        }
-
-        // Add diagnostic info if available
-        if (diagnosticInfo) {
-          errorMessage = `${errorMessage}\n\nDiagnostic information: ${diagnosticInfo}\n\nSerpAPI docs: https://serpapi.com/search-api`;
-        }
-
-        // Log detailed error information if debugging is enabled
-        debug.log(debugOptions, 'SerpAPI error', {
-          error: error instanceof Error ? error.message : String(error),
-          statusCode: error instanceof HttpError ? error.statusCode : undefined,
-          diagnosticInfo,
-        });
-
-        throw new Error(errorMessage);
+      if (response.error) {
+        throw new Error(`SerpAPI error: ${response.error}`);
       }
+
+      if (!response.organic_results || response.organic_results.length === 0) {
+        debug.log(debugOptions, 'SerpAPI returned no results');
+        return [];
+      }
+
+      // Transform SerpAPI response to standard SearchResult format
+      return response.organic_results
+        .filter((result) => result.link && result.title)
+        .map((result) => {
+          // Extract domain from displayed_link
+          const domain = result.displayed_link?.split('/')[0] || undefined;
+
+          return {
+            url: result.link,
+            title: result.title,
+            snippet: result.snippet || undefined,
+            domain,
+            publishedDate: result.date,
+            provider: 'serpapi',
+            raw: result,
+          };
+        });
     },
-  };
+  });
 }
 
 /**
@@ -246,8 +212,8 @@ export const serpapi = {
    * Search implementation that ensures provider is properly configured before use
    */
   search: async (_options: SearchOptions): Promise<SearchResult[]> => {
-    throw new Error(
-      'SerpAPI provider must be configured before use. Call serpapi.configure() first.'
-    );
+    return err(
+      new Error('SerpAPI provider must be configured before use. Call serpapi.configure() first.')
+    ) as any;
   },
 };

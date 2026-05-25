@@ -89,24 +89,31 @@ describe('createDuckDuckGoProvider', () => {
     expect(provider.name).toBe('duckduckgo');
   });
 
-  it('throws if no query is provided', async () => {
+  it('returns error if no query is provided', async () => {
     const provider = createDuckDuckGoProvider();
-    await expect(provider.search({})).rejects.toThrow('DuckDuckGo search requires a query');
+    const result = await provider.search({ retries: 0 });
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.message).toContain('DuckDuckGo search requires a query');
+    }
   });
 
   describe('text search', () => {
     it('returns text search results from HTML parsing', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createTextResponse(sampleDDGHtml)));
       const provider = createDuckDuckGoProvider();
-      const results = await provider.search({ query: 'test' });
-      // Results depend on regex parsing HTML - could be 0 since mock doesn't match exactly
-      expect(Array.isArray(results)).toBe(true);
+      const result = await provider.search({ query: 'test', retries: 0 });
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(Array.isArray(result.value)).toBe(true);
+      }
     });
 
     it('makes a POST request for text search', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createTextResponse(sampleDDGHtml)));
       const provider = createDuckDuckGoProvider();
-      await provider.search({ query: 'test' });
+      const result = await provider.search({ query: 'test', retries: 0 });
+      expect(result.isOk()).toBe(true);
       const options = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][1];
       expect(options.method).toBe('POST');
     });
@@ -114,7 +121,8 @@ describe('createDuckDuckGoProvider', () => {
     it('uses lite URL when useLite is true', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createTextResponse(sampleDDGHtml)));
       const provider = createDuckDuckGoProvider({ useLite: true });
-      await provider.search({ query: 'test' });
+      const result = await provider.search({ query: 'test', retries: 0 });
+      expect(result.isOk()).toBe(true);
       const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(url).toContain('lite.duckduckgo.com');
     });
@@ -122,7 +130,8 @@ describe('createDuckDuckGoProvider', () => {
     it('uses custom userAgent when provided', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createTextResponse(sampleDDGHtml)));
       const provider = createDuckDuckGoProvider({ userAgent: 'custom-agent/1.0' });
-      await provider.search({ query: 'test' });
+      const result = await provider.search({ query: 'test', retries: 0 });
+      expect(result.isOk()).toBe(true);
       const options = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][1];
       expect(options.headers['User-Agent']).toBe('custom-agent/1.0');
     });
@@ -137,19 +146,27 @@ describe('createDuckDuckGoProvider', () => {
       vi.stubGlobal('fetch', fetchMock);
 
       const provider = createDuckDuckGoProvider({ searchType: 'images' });
-      const results = await provider.search({ query: 'test images' });
+      const result = await provider.search({ query: 'test images', retries: 0 });
 
-      expect(results).toHaveLength(1);
-      expect(results[0].title).toBe('Image Title');
-      expect(results[0].url).toBe('https://example.com/page');
-      expect(results[0].snippet).toContain('800x600');
-      expect(results[0].provider).toBe('duckduckgo');
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        const results = result.value;
+        expect(results).toHaveLength(1);
+        expect(results[0].title).toBe('Image Title');
+        expect(results[0].url).toBe('https://example.com/page');
+        expect(results[0].snippet).toContain('800x600');
+        expect(results[0].provider).toBe('duckduckgo');
+      }
     });
 
-    it('throws when vqd cannot be extracted for images', async () => {
+    it('returns error when vqd cannot be extracted for images', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createTextResponse('no vqd here')));
       const provider = createDuckDuckGoProvider({ searchType: 'images' });
-      await expect(provider.search({ query: 'test' })).rejects.toThrow('vqd');
+      const result = await provider.search({ query: 'test', retries: 0 });
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toContain('vqd');
+      }
     });
 
     it('respects maxResults for image search', async () => {
@@ -172,8 +189,11 @@ describe('createDuckDuckGoProvider', () => {
           .mockResolvedValueOnce(createJsonResponse(200, manyImages))
       );
       const provider = createDuckDuckGoProvider({ searchType: 'images' });
-      const results = await provider.search({ query: 'test', maxResults: 5 });
-      expect(results).toHaveLength(5);
+      const result = await provider.search({ query: 'test', maxResults: 5, retries: 0 });
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value).toHaveLength(5);
+      }
     });
   });
 
@@ -186,14 +206,18 @@ describe('createDuckDuckGoProvider', () => {
       vi.stubGlobal('fetch', fetchMock);
 
       const provider = createDuckDuckGoProvider({ searchType: 'news' });
-      const results = await provider.search({ query: 'test news' });
+      const result = await provider.search({ query: 'test news', retries: 0 });
 
-      expect(results).toHaveLength(2);
-      expect(results[0].title).toBe('News Article');
-      expect(results[0].url).toBe('https://news.example.com/article');
-      expect(results[0].snippet).toBe('News article body text');
-      expect(results[0].publishedDate).toBe('2024-01-15T10:00:00Z');
-      expect(results[0].provider).toBe('duckduckgo');
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        const results = result.value;
+        expect(results).toHaveLength(2);
+        expect(results[0].title).toBe('News Article');
+        expect(results[0].url).toBe('https://news.example.com/article');
+        expect(results[0].snippet).toBe('News article body text');
+        expect(results[0].publishedDate).toBe('2024-01-15T10:00:00Z');
+        expect(results[0].provider).toBe('duckduckgo');
+      }
     });
 
     it('normalizes image URL with // prefix in news', async () => {
@@ -204,15 +228,23 @@ describe('createDuckDuckGoProvider', () => {
       vi.stubGlobal('fetch', fetchMock);
 
       const provider = createDuckDuckGoProvider({ searchType: 'news' });
-      const results = await provider.search({ query: 'test' });
-      // Second result has image with //
-      expect((results[1].raw as { image?: string })?.image).toContain('https:');
+      const result = await provider.search({ query: 'test', retries: 0 });
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        const results = result.value;
+        // Second result has image with //
+        expect((results[1].raw as { image?: string })?.image).toContain('https:');
+      }
     });
 
-    it('throws when vqd cannot be extracted for news', async () => {
+    it('returns error when vqd cannot be extracted for news', async () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(createTextResponse('no vqd here')));
       const provider = createDuckDuckGoProvider({ searchType: 'news' });
-      await expect(provider.search({ query: 'test' })).rejects.toThrow('vqd');
+      const result = await provider.search({ query: 'test', retries: 0 });
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toContain('vqd');
+      }
     });
 
     it('respects maxResults for news search', async () => {
@@ -233,8 +265,11 @@ describe('createDuckDuckGoProvider', () => {
           .mockResolvedValueOnce(createJsonResponse(200, manyNews))
       );
       const provider = createDuckDuckGoProvider({ searchType: 'news' });
-      const results = await provider.search({ query: 'test', maxResults: 3 });
-      expect(results).toHaveLength(3);
+      const result = await provider.search({ query: 'test', maxResults: 3, retries: 0 });
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value).toHaveLength(3);
+      }
     });
   });
 
@@ -247,12 +282,16 @@ describe('createDuckDuckGoProvider', () => {
       vi.stubGlobal('fetch', fetchMock);
 
       const provider = createDuckDuckGoProvider();
-      const results = await provider.search({
+      const result = await provider.search({
         query: 'test',
         // @ts-expect-error - testing DuckDuckGo-specific option
         searchType: 'images',
+        retries: 0,
       });
-      expect(results[0].snippet).toContain('image');
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value[0].snippet).toContain('image');
+      }
     });
   });
 
@@ -271,23 +310,33 @@ describe('createDuckDuckGoProvider', () => {
         })
       );
       const provider = createDuckDuckGoProvider();
-      await expect(provider.search({ query: 'test' })).rejects.toThrow('DuckDuckGo');
+      const result = await provider.search({ query: 'test', retries: 0 });
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toContain('DuckDuckGo search failed:');
+      }
     });
 
     it('handles generic Error', async () => {
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
       const provider = createDuckDuckGoProvider();
-      await expect(provider.search({ query: 'test' })).rejects.toThrow(
-        'DuckDuckGo search failed: Network error'
-      );
+      const result = await provider.search({ query: 'test', retries: 0 });
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toContain('DuckDuckGo search failed:');
+        expect(result.error.message).toContain('Network error');
+      }
     });
 
     it('handles non-Error throw', async () => {
       vi.stubGlobal('fetch', vi.fn().mockRejectedValue('string error'));
       const provider = createDuckDuckGoProvider();
-      await expect(provider.search({ query: 'test' })).rejects.toThrow(
-        'DuckDuckGo search failed: string error'
-      );
+      const result = await provider.search({ query: 'test', retries: 0 });
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toContain('DuckDuckGo search failed:');
+        expect(result.error.message).toContain('string error');
+      }
     });
 
     it('handles HttpError with parsedResponseBody', async () => {
@@ -305,7 +354,11 @@ describe('createDuckDuckGoProvider', () => {
         })
       );
       const provider = createDuckDuckGoProvider();
-      await expect(provider.search({ query: 'test' })).rejects.toThrow('DuckDuckGo');
+      const result = await provider.search({ query: 'test', retries: 0 });
+      expect(result.isErr()).toBe(true);
+      if (result.isErr()) {
+        expect(result.error.message).toContain('DuckDuckGo search failed:');
+      }
     });
   });
 
@@ -333,8 +386,11 @@ describe('createDuckDuckGoProvider', () => {
           .mockResolvedValueOnce(createJsonResponse(200, imagesWithProtocolRelativeUrl))
       );
       const provider = createDuckDuckGoProvider({ searchType: 'images' });
-      const results = await provider.search({ query: 'test' });
-      expect(results[0].url).toBe('https://example.com/page');
+      const result = await provider.search({ query: 'test', retries: 0 });
+      expect(result.isOk()).toBe(true);
+      if (result.isOk()) {
+        expect(result.value[0].url).toBe('https://example.com/page');
+      }
     });
   });
 });
@@ -344,10 +400,12 @@ describe('duckduckgo singleton', () => {
     expect(duckduckgo.name).toBe('duckduckgo');
   });
 
-  it('throws when search is called without configure', async () => {
-    await expect(duckduckgo.search({ query: 'test' })).rejects.toThrow(
-      'DuckDuckGo provider must be configured before use'
-    );
+  it('returns error when search is called without configure', async () => {
+    const result = await duckduckgo.search({ query: 'test', retries: 0 });
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.message).toContain('DuckDuckGo provider must be configured before use');
+    }
   });
 
   it('configure returns a working provider', () => {

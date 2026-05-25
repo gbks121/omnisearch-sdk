@@ -1,6 +1,7 @@
 import { SearchOptions, SearchProvider, SearchResult, ProviderConfig } from '../types';
-import { post, HttpError } from '../utils/http';
+import { post, createBaseProvider } from '../utils';
 import { debug } from '../utils/debug';
+import { err } from 'neverthrow';
 
 /**
  * Tavily API response types
@@ -72,9 +73,24 @@ export function createTavilyProvider(config: TavilyConfig): SearchProvider {
 
   const baseUrl = config.baseUrl || DEFAULT_BASE_URL;
 
-  return {
+  return createBaseProvider({
     name: 'tavily',
     config,
+    getTroubleshooting: (_error: Error, statusCode?: number) => {
+      if (statusCode === 401 || statusCode === 403) {
+        return "Authentication failed or Access denied. Check your apiKey and make sure it's valid and has the correct permissions.";
+      }
+      if (statusCode === 400) {
+        return 'Bad request. This is likely due to invalid request parameters. Check your query and other search options.';
+      }
+      if (statusCode === 429) {
+        return "Rate limit exceeded. You've exceeded the rate limit for this API. Try again later or reduce your request frequency.";
+      }
+      if (statusCode && statusCode >= 500) {
+        return 'Server error. The search provider is experiencing issues. Try again later.';
+      }
+      return '';
+    },
     search: async (options: SearchOptions): Promise<SearchResult[]> => {
       const {
         query,
@@ -123,104 +139,48 @@ export function createTavilyProvider(config: TavilyConfig): SearchProvider {
         },
       });
 
-      try {
-        const response = await post<TavilySearchResponse>(baseUrl, requestBody, { timeout });
+      const result = await post<TavilySearchResponse>(baseUrl, requestBody, {
+        timeout,
+      });
+      if (result.isErr()) throw result.error;
+      const response = result.value;
 
-        // Log response if debugging is enabled
-        debug.logResponse(debugOptions, 'Tavily Search raw response', {
-          status: 'success',
-          itemCount: response.results?.length || 0,
-          searchId: response.search_id,
-          query: response.query,
-          searchDepth: response.search_depth,
-        });
+      // Log response if debugging is enabled
+      debug.logResponse(debugOptions, 'Tavily Search raw response', {
+        status: 'success',
+        itemCount: response.results?.length || 0,
+        searchId: response.search_id,
+        query: response.query,
+        searchDepth: response.search_depth,
+      });
 
-        if (!response.results || response.results.length === 0) {
-          debug.log(debugOptions, 'Tavily Search returned no results');
-          return [];
-        }
-
-        // Transform Tavily response to standard SearchResult format
-        return response.results.map((result) => {
-          // Extract domain from URL
-          let domain;
-          try {
-            domain = new URL(result.url).hostname;
-          } catch {
-            domain = undefined;
-          }
-
-          return {
-            url: result.url,
-            title: result.title,
-            snippet: result.content,
-            domain,
-            publishedDate: result.published_date,
-            provider: 'tavily',
-            raw: result,
-          };
-        });
-      } catch (error) {
-        // Create detailed error message with diagnostic information
-        let errorMessage = 'Tavily search failed';
-        let diagnosticInfo = '';
-
-        if (error instanceof HttpError) {
-          // Handle specific Tavily API error codes
-          if (error.statusCode === 401) {
-            diagnosticInfo = 'Invalid API key. Check your Tavily API key.';
-          } else if (error.statusCode === 403) {
-            diagnosticInfo =
-              'Access denied. Your Tavily API key may have insufficient permissions or has expired.';
-          } else if (error.statusCode === 429) {
-            diagnosticInfo =
-              'Rate limit exceeded. You have reached your Tavily API quota or sent too many requests.';
-          } else if (error.statusCode === 400) {
-            diagnosticInfo =
-              'Bad request. Check your search parameters, especially the query, limit and search_depth values.';
-
-            // Try to extract more detailed error info
-            if (error.message.includes('search_depth')) {
-              diagnosticInfo += ' Invalid search_depth. Use "basic" or "comprehensive".';
-            } else if (error.message.includes('sort_by')) {
-              diagnosticInfo += ' Invalid sort_by value. Use "relevance" or "date".';
-            }
-          } else if (error.statusCode >= 500) {
-            diagnosticInfo =
-              'Tavily server error. The service might be experiencing issues. Try again later.';
-          }
-
-          errorMessage = `${errorMessage}: ${error.message}`;
-        } else if (error instanceof Error) {
-          errorMessage = `${errorMessage}: ${error.message}`;
-
-          // Check for common error messages
-          if (error.message.includes('api_key') || error.message.includes('apiKey')) {
-            diagnosticInfo = 'Authentication issue. Check your Tavily API key.';
-          } else if (error.message.includes('timeout')) {
-            diagnosticInfo =
-              'The request timed out. Try increasing the timeout value, using "basic" search_depth, or simplifying your query.';
-          }
-        } else {
-          errorMessage = `${errorMessage}: ${String(error)}`;
-        }
-
-        // Add diagnostic info if available
-        if (diagnosticInfo) {
-          errorMessage = `${errorMessage}\n\nDiagnostic information: ${diagnosticInfo}\n\nTavily API docs: https://docs.tavily.com/docs/tavily-api/search`;
-        }
-
-        // Log detailed error information if debugging is enabled
-        debug.log(debugOptions, 'Tavily Search error', {
-          error: error instanceof Error ? error.message : String(error),
-          statusCode: error instanceof HttpError ? error.statusCode : undefined,
-          diagnosticInfo,
-        });
-
-        throw new Error(errorMessage);
+      if (!response.results || response.results.length === 0) {
+        debug.log(debugOptions, 'Tavily Search returned no results');
+        return [];
       }
+
+      // Transform Tavily response to standard SearchResult format
+      return response.results.map((result) => {
+        // Extract domain from URL
+        let domain;
+        try {
+          domain = new URL(result.url).hostname;
+        } catch {
+          domain = undefined;
+        }
+
+        return {
+          url: result.url,
+          title: result.title,
+          snippet: result.content,
+          domain,
+          publishedDate: result.published_date,
+          provider: 'tavily',
+          raw: result,
+        };
+      });
     },
-  };
+  });
 }
 
 /**
@@ -242,9 +202,10 @@ export const tavily = {
   /**
    * Search implementation that ensures provider is properly configured before use
    */
-  search: async (_options: SearchOptions): Promise<SearchResult[]> => {
-    throw new Error(
-      'Tavily provider must be configured before use. Call tavily.configure() first.'
+  search: async (_options: SearchOptions) => {
+    return err(
+      new Error('Tavily provider must be configured before use. Call tavily.configure() first.')
     );
   },
-};
+  };
+

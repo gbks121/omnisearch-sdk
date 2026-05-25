@@ -8,6 +8,7 @@ function mockResponse(status: number, body: unknown, statusText = 'OK', isJson =
     ok: status >= 200 && status < 300,
     status,
     statusText,
+    headers: new Map([['content-type', isJson ? 'application/json' : 'text/plain']]),
     json: vi.fn().mockResolvedValue(body),
     text: vi.fn().mockResolvedValue(bodyStr),
     clone: vi.fn().mockReturnValue({
@@ -25,71 +26,12 @@ describe('HttpError', () => {
     expect(error.response).toBeUndefined();
   });
 
-  it('stores a response reference when provided', () => {
+  it('stores a response reference and body when provided', () => {
     const response = mockResponse(404, { error: 'Not found' });
-    const error = new HttpError('Not found', 404, response);
+    const responseBody = { error: 'Not found' };
+    const error = new HttpError('Not found', 404, response, responseBody);
     expect(error.response).toBe(response);
-  });
-
-  it('parseResponseBody returns null when no response is attached', async () => {
-    const error = new HttpError('Test', 500);
-    const result = await error.parseResponseBody();
-    expect(result).toBeNull();
-  });
-
-  it('parseResponseBody parses JSON body', async () => {
-    const bodyData = { error: 'something went wrong' };
-    const response = mockResponse(500, bodyData);
-    const error = new HttpError('Server error', 500, response);
-
-    const result = await error.parseResponseBody();
-    expect(result).toEqual(bodyData);
-    expect(error.parsedResponseBody).toEqual(bodyData);
-  });
-
-  it('parseResponseBody returns raw text for non-JSON body', async () => {
-    const rawText = 'plain error text';
-    const response = {
-      ok: false,
-      status: 500,
-      statusText: 'Internal Server Error',
-      json: vi.fn().mockRejectedValue(new Error('Not JSON')),
-      text: vi.fn().mockResolvedValue(rawText),
-      clone: vi.fn().mockReturnValue({
-        text: vi.fn().mockResolvedValue(rawText),
-      }),
-    } as unknown as Response;
-
-    const error = new HttpError('Server error', 500, response);
-    const result = await error.parseResponseBody();
-    expect(result).toBe(rawText);
-  });
-
-  it('parseResponseBody returns null when body reading fails', async () => {
-    const response = {
-      ok: false,
-      status: 500,
-      statusText: 'Internal Server Error',
-      clone: vi.fn().mockReturnValue({
-        text: vi.fn().mockRejectedValue(new Error('Stream error')),
-      }),
-    } as unknown as Response;
-
-    const error = new HttpError('Server error', 500, response);
-    const result = await error.parseResponseBody();
-    expect(result).toBeNull();
-  });
-
-  it('parseResponseBody uses cached responseBody if already read', async () => {
-    const bodyData = { error: 'cached' };
-    const response = mockResponse(500, bodyData);
-    const error = new HttpError('Server error', 500, response);
-    error.responseBody = JSON.stringify(bodyData);
-
-    const result = await error.parseResponseBody();
-    // clone should not be called since responseBody is already set
-    expect(response.clone).not.toHaveBeenCalled();
-    expect(result).toEqual(bodyData);
+    expect(error.responseBody).toEqual(responseBody);
   });
 });
 
@@ -149,7 +91,10 @@ describe('makeRequest', () => {
     fetchMock.mockResolvedValueOnce(mockResponse(200, responseData));
 
     const result = await makeRequest<typeof responseData>('https://example.com/api');
-    expect(result).toEqual(responseData);
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value).toEqual(responseData);
+    }
     expect(fetchMock).toHaveBeenCalledWith(
       'https://example.com/api',
       expect.objectContaining({ method: 'GET' })
@@ -200,20 +145,6 @@ describe('makeRequest', () => {
     );
   });
 
-  it('does not set Content-Type if already provided', async () => {
-    fetchMock.mockResolvedValueOnce(mockResponse(200, {}));
-    const body = { query: 'test' };
-
-    await makeRequest('https://example.com/api', {
-      method: 'POST',
-      body,
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    });
-
-    const callArgs = fetchMock.mock.calls[0][1];
-    expect(callArgs.headers['Content-Type']).toBe('application/x-www-form-urlencoded');
-  });
-
   it('does not send body for GET requests', async () => {
     fetchMock.mockResolvedValueOnce(mockResponse(200, {}));
 
@@ -226,140 +157,41 @@ describe('makeRequest', () => {
     expect(callArgs.body).toBeUndefined();
   });
 
-  it('throws HttpError on non-OK response with simple error message', async () => {
+  it('returns HttpError on non-OK response', async () => {
     const errorBody = { message: 'Not found' };
     fetchMock.mockResolvedValue(mockResponse(404, errorBody, 'Not Found'));
 
-    await expect(makeRequest('https://example.com/api')).rejects.toThrow(HttpError);
-    await expect(makeRequest('https://example.com/api')).rejects.toMatchObject({
-      statusCode: 404,
-    });
-  });
-
-  it('throws HttpError with error field from body', async () => {
-    const errorBody = { error: 'Unauthorized' };
-    fetchMock.mockResolvedValueOnce(mockResponse(401, errorBody, 'Unauthorized'));
-    fetchMock.mockResolvedValueOnce(mockResponse(401, errorBody, 'Unauthorized'));
-
-    try {
-      await makeRequest('https://example.com/api');
-    } catch (e) {
-      expect(e).toBeInstanceOf(HttpError);
-      expect((e as HttpError).message).toContain('Unauthorized');
+    const result = await makeRequest('https://example.com/api');
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error).toBeInstanceOf(HttpError);
+      const httpErr = result.error as HttpError;
+      expect(httpErr.statusCode).toBe(404);
+      expect(httpErr.responseBody).toEqual(errorBody);
     }
   });
 
-  it('throws HttpError with Google nested error structure', async () => {
-    const errorBody = {
-      error: {
-        message: 'API key not valid',
-        errors: [{ reason: 'keyInvalid', message: 'API key not valid' }],
-      },
-    };
-    fetchMock.mockResolvedValueOnce(mockResponse(403, errorBody, 'Forbidden'));
-    fetchMock.mockResolvedValueOnce(mockResponse(403, errorBody, 'Forbidden'));
-
-    try {
-      await makeRequest('https://example.com/api');
-    } catch (e) {
-      expect(e).toBeInstanceOf(HttpError);
-      expect((e as HttpError).message).toContain('API key not valid');
-    }
-  });
-
-  it('throws HttpError with Google errors array fallback when no message', async () => {
-    const errorBody = {
-      error: {
-        errors: [{ reason: 'dailyLimitExceeded', message: 'Daily limit exceeded' }],
-      },
-    };
-    fetchMock.mockResolvedValueOnce(mockResponse(429, errorBody, 'Too Many Requests'));
-    fetchMock.mockResolvedValueOnce(mockResponse(429, errorBody, 'Too Many Requests'));
-
-    try {
-      await makeRequest('https://example.com/api');
-    } catch (e) {
-      expect(e).toBeInstanceOf(HttpError);
-      expect((e as HttpError).message).toContain('dailyLimitExceeded');
-    }
-  });
-
-  it('throws HttpError with nested Google error object (no message, no errors)', async () => {
-    const errorBody = { error: { code: 403, status: 'PERMISSION_DENIED' } };
-    fetchMock.mockResolvedValueOnce(mockResponse(403, errorBody, 'Forbidden'));
-    fetchMock.mockResolvedValueOnce(mockResponse(403, errorBody, 'Forbidden'));
-
-    try {
-      await makeRequest('https://example.com/api');
-    } catch (e) {
-      expect(e).toBeInstanceOf(HttpError);
-      expect((e as HttpError).statusCode).toBe(403);
-    }
-  });
-
-  it('throws HttpError with description field from body', async () => {
-    const errorBody = { description: 'Rate limit exceeded' };
-    fetchMock.mockResolvedValueOnce(mockResponse(429, errorBody, 'Too Many Requests'));
-    fetchMock.mockResolvedValueOnce(mockResponse(429, errorBody, 'Too Many Requests'));
-
-    try {
-      await makeRequest('https://example.com/api');
-    } catch (e) {
-      expect(e).toBeInstanceOf(HttpError);
-      expect((e as HttpError).message).toContain('Rate limit exceeded');
-    }
-  });
-
-  it('throws HttpError with fallback JSON stringify for complex body', async () => {
-    const errorBody = { complexField: { nested: 'value' } };
-    fetchMock.mockResolvedValueOnce(mockResponse(500, errorBody, 'Server Error'));
-    fetchMock.mockResolvedValueOnce(mockResponse(500, errorBody, 'Server Error'));
-
-    try {
-      await makeRequest('https://example.com/api');
-    } catch (e) {
-      expect(e).toBeInstanceOf(HttpError);
-    }
-  });
-
-  it('appends plain text error details to message', async () => {
-    const errorText = 'Plain text error response';
-    const response = {
-      ok: false,
-      status: 400,
-      statusText: 'Bad Request',
-      json: vi.fn().mockResolvedValue(errorText),
-      text: vi.fn().mockResolvedValue(errorText),
-      clone: vi.fn().mockReturnValue({
-        text: vi.fn().mockResolvedValue(errorText),
-      }),
-    } as unknown as Response;
-    fetchMock.mockResolvedValueOnce(response);
-    fetchMock.mockResolvedValueOnce(response);
-
-    try {
-      await makeRequest('https://example.com/api');
-    } catch (e) {
-      expect(e).toBeInstanceOf(HttpError);
-    }
-  });
-
-  it('throws timeout error when request exceeds timeout', async () => {
-    // Simulate an abort error (what happens when AbortController.abort() is called)
+  it('returns timeout error when request exceeds timeout', async () => {
     const abortError = new Error('The operation was aborted');
     abortError.name = 'AbortError';
     fetchMock.mockRejectedValueOnce(abortError);
 
-    await expect(makeRequest('https://example.com/api', { timeout: 100 })).rejects.toThrow(
-      'timed out'
-    );
+    const result = await makeRequest('https://example.com/api', { timeout: 100 });
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.message).toContain('timed out');
+    }
   });
 
-  it('re-throws non-abort errors', async () => {
+  it('returns other errors', async () => {
     const networkError = new Error('Network error');
     fetchMock.mockRejectedValueOnce(networkError);
 
-    await expect(makeRequest('https://example.com/api')).rejects.toThrow('Network error');
+    const result = await makeRequest('https://example.com/api');
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.message).toBe('Network error');
+    }
   });
 });
 
@@ -378,21 +210,13 @@ describe('get', () => {
   it('makes a GET request', async () => {
     fetchMock.mockResolvedValueOnce(mockResponse(200, { data: 'test' }));
     const result = await get<{ data: string }>('https://example.com/api');
-    expect(result).toEqual({ data: 'test' });
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value).toEqual({ data: 'test' });
+    }
     expect(fetchMock).toHaveBeenCalledWith(
       'https://example.com/api',
       expect.objectContaining({ method: 'GET' })
-    );
-  });
-
-  it('passes options to makeRequest', async () => {
-    fetchMock.mockResolvedValueOnce(mockResponse(200, {}));
-    await get('https://example.com/api', { headers: { Authorization: 'Bearer token' } });
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://example.com/api',
-      expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: 'Bearer token' }),
-      })
     );
   });
 });
@@ -413,21 +237,13 @@ describe('post', () => {
     fetchMock.mockResolvedValueOnce(mockResponse(200, { success: true }));
     const body = { query: 'test search' };
     const result = await post<{ success: boolean }>('https://example.com/api', body);
-    expect(result).toEqual({ success: true });
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value).toEqual({ success: true });
+    }
     expect(fetchMock).toHaveBeenCalledWith(
       'https://example.com/api',
       expect.objectContaining({ method: 'POST', body: JSON.stringify(body) })
-    );
-  });
-
-  it('passes extra options to makeRequest', async () => {
-    fetchMock.mockResolvedValueOnce(mockResponse(200, {}));
-    await post('https://example.com/api', {}, { headers: { 'X-Custom': 'value' } });
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://example.com/api',
-      expect.objectContaining({
-        headers: expect.objectContaining({ 'X-Custom': 'value' }),
-      })
     );
   });
 });

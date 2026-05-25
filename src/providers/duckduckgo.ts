@@ -1,4 +1,5 @@
-import { debug, HttpError, get, post } from '../utils';
+import { err } from 'neverthrow';
+import { debug, get, post, createBaseProvider } from '../utils';
 import {
   SearchProvider,
   SearchResult,
@@ -52,29 +53,19 @@ interface DuckDuckGoNewsResponse {
  * DuckDuckGo configuration options
  */
 export interface DuckDuckGoConfig extends ProviderConfig {
-  /** Base URL for DuckDuckGo API (defaults to HTML version) */
   baseUrl?: string;
-  /** Search type: 'text', 'images', or 'news' */
   searchType?: 'text' | 'images' | 'news';
-  /** Whether to use lite version (lighter weight HTML results) */
   useLite?: boolean;
-  /** User agent to use for requests */
   userAgent?: string;
-  /** Optional proxy configuration */
-  proxy?: string;
 }
 
 /**
  * Extended SearchOptions with DuckDuckGo-specific options
  */
 interface DuckDuckGoSearchOptions extends SearchOptions {
-  /** Search type override at query time */
   searchType?: 'text' | 'images' | 'news';
 }
 
-/**
- * Default base URLs for DuckDuckGo search
- */
 const DEFAULT_BASE_URLS = {
   text: 'https://html.duckduckgo.com/html',
   lite: 'https://lite.duckduckgo.com/lite/',
@@ -82,53 +73,32 @@ const DEFAULT_BASE_URLS = {
   news: 'https://duckduckgo.com/news.js',
 };
 
-/**
- * Normalizes text by removing excess whitespace and line breaks
- */
 function normalizeText(text: string): string {
-  return text.replace(/\s+/g, ' ').trim();
+  return text
+    .replace(/<[^>]*>?/gm, '') // Remove HTML tags
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
-/**
- * Normalizes URLs by ensuring they start with http/https.
- * Returns an empty string for falsy input so callers can filter.
- */
 function normalizeUrl(url: string): string {
   if (!url || typeof url !== 'string') return '';
   const trimmed = url.trim();
-  if (!trimmed) return '';
-  if (trimmed.startsWith('//')) {
-    return `https:${trimmed}`;
-  }
-  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
-    return `https://${trimmed}`;
-  }
+  if (trimmed.startsWith('//')) return `https:${trimmed}`;
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) return `https://${trimmed}`;
   return trimmed;
 }
 
-/**
- * Extract the "vqd" parameter required for some DuckDuckGo API endpoints
- * This is a temporary value that is embedded in the search HTML response
- */
-function extractVqd(html: string, _keywords: string): string | null {
+function extractVqd(html: string): string | null {
   if (!html) return null;
-  try {
-    // Use a fixed regex — does not interpolate user input
-    const match = html.match(/vqd=['"]([^'"]+)['"]/i);
-    return match ? match[1] : null;
-  } catch (_error) {
-    return null;
-  }
+  const match = html.match(/vqd=['"]([^'"]+)['"]/i);
+  return match ? match[1] : null;
 }
 
-/**
- * Creates a DuckDuckGo search provider instance
- *
- * @param config Configuration options for DuckDuckGo
- * @returns A configured DuckDuckGo provider
- */
 export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchProvider {
-  // DuckDuckGo doesn't require an API key
   const searchType = config.searchType || 'text';
   const useLite = config.useLite || false;
 
@@ -138,18 +108,25 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
     news: config.baseUrl || DEFAULT_BASE_URLS.news,
   };
 
-  // Default headers for requests
   const headers = {
     'User-Agent':
       config.userAgent ||
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
     Referer: useLite ? 'https://lite.duckduckgo.com/' : 'https://html.duckduckgo.com/',
-    'Sec-Fetch-User': '?1',
   };
 
-  return {
+  return createBaseProvider({
     name: 'duckduckgo',
     config: { ...config, apiKey: config.apiKey || '' },
+    getTroubleshooting: (error: Error, statusCode?: number) => {
+      if (error.message.includes('vqd')) {
+        return 'Failed to extract the vqd parameter from DuckDuckGo. This may be due to temporary API changes or rate limiting. Try again later.';
+      }
+      if (statusCode === 429 || error.message.includes('rate')) {
+        return 'You may be making too many requests to DuckDuckGo. Try adding a delay between requests.';
+      }
+      return '';
+    },
     search: async (options: SearchOptions): Promise<SearchResult[]> => {
       const {
         query,
@@ -160,7 +137,6 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
         timeout,
       } = options;
 
-      // Cast to access DuckDuckGo-specific options
       const duckOptions = options as DuckDuckGoSearchOptions;
       const effectiveSearchType = duckOptions.searchType || searchType;
 
@@ -168,91 +144,39 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
         throw new Error('DuckDuckGo search requires a query.');
       }
 
-      try {
-        // Select search method based on type
-        if (effectiveSearchType === 'images') {
-          return await searchImages(query, region, safeSearch, maxResults, debugOptions, timeout);
-        } else if (effectiveSearchType === 'news') {
-          return await searchNews(query, region, safeSearch, maxResults, debugOptions, timeout);
-        } else {
-          // Default to text search
-          return await searchText(query, region, safeSearch, maxResults, debugOptions, timeout);
-        }
-      } catch (error: unknown) {
-        let errorMessage = 'DuckDuckGo search failed';
-        let statusCode: number | undefined;
-
-        if (error instanceof HttpError) {
-          errorMessage = `DuckDuckGo API error: ${error.statusCode} - ${error.message}`;
-          statusCode = error.statusCode;
-          if (error.parsedResponseBody) {
-            errorMessage += `\\nResponse: ${JSON.stringify(error.parsedResponseBody)}`;
-          }
-        } else if (error instanceof Error) {
-          errorMessage = `DuckDuckGo search failed: ${error.message}`;
-        } else {
-          errorMessage = `DuckDuckGo search failed: ${String(error)}`;
-        }
-
-        debug.log(debugOptions, 'DuckDuckGo Search error', {
-          error: error instanceof Error ? error.message : String(error),
-          stack: error instanceof Error ? error.stack : undefined,
-          statusCode,
-        });
-        throw new Error(errorMessage);
+      if (effectiveSearchType === 'images') {
+        return await searchImages(query, region, safeSearch, maxResults, debugOptions, timeout);
+      } else if (effectiveSearchType === 'news') {
+        return await searchNews(query, region, safeSearch, maxResults, debugOptions, timeout);
+      } else {
+        return await searchText(query, region, safeSearch, maxResults, debugOptions, timeout);
       }
     },
-  };
+  });
 
-  /**
-   * Performs a text search using DuckDuckGo's HTML interface
-   */
   async function searchText(
     query: string,
     region: string,
-    safeSearch: string,
+    _safeSearch: string,
     maxResults: number,
     debugOptions?: DebugOptions,
     timeout?: number
   ): Promise<SearchResult[]> {
     const baseUrl = useLite ? DEFAULT_BASE_URLS.lite : baseUrls.text;
-    debug.logRequest(debugOptions, 'DuckDuckGo Text Search request', { baseUrl, query, region });
+    const payload = { q: query, b: '', kl: region };
 
-    // Set up initial request payload
-    const payload = {
-      q: query,
-      b: '',
-      kl: region,
-    };
-
-    // Perform the search request
-    const response = await post<string>(baseUrl, payload, {
-      headers,
-      timeout,
-    });
-
-    debug.log(debugOptions, 'DuckDuckGo Text Search raw response received', {
-      length: response.length,
-    });
-
-    // Parse the HTML response
+    const result = await post<string>(baseUrl, payload, { headers, timeout });
+    if (result.isErr()) throw result.error;
+    const response = result.value;
     const results: SearchResult[] = [];
     const cache = new Set<string>();
 
     if (useLite) {
-      // Parse lite version HTML
-      // This is simplified placeholder implementation - would need HTML parsing library for complete implementation
-      const resultsRegex =
-        /<a href="([^"]+)"[^>]*>([^<]+)<\/a>.*?<td class="result-snippet">(.*?)<\/td>/gs;
+      const resultsRegex = /<a class="result-link" href="([^"]+)">([^<]+)<\/a>.*?<div class="result-snippet">([^<]+)<\/div>/gs;
       let match;
-
       while ((match = resultsRegex.exec(response)) !== null && results.length < maxResults) {
         const href = match[1];
-        if (
-          !cache.has(href) &&
-          !href.includes('google.com/search') &&
-          !href.includes('duckduckgo.com/y.js')
-        ) {
+        if (!cache.has(href)) {
           cache.add(href);
           results.push({
             url: normalizeUrl(href),
@@ -263,18 +187,11 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
         }
       }
     } else {
-      // Parse standard HTML version
-      const resultsRegex =
-        /<h2.*?><a .*?href="([^"]+)"[^>]*>(.*?)<\/a><\/h2>.*?<a .*?>(.*?)<\/a>/gs;
+      const resultsRegex = /<h2 class="result__title">.*?<a class="result__a" href="([^"]+)"[^>]*>(.*?)<\/a>.*?<\/h2>.*?<a class="result__snippet" [^>]*>(.*?)<\/a>/gs;
       let match;
-
       while ((match = resultsRegex.exec(response)) !== null && results.length < maxResults) {
         const href = match[1];
-        if (
-          !cache.has(href) &&
-          !href.includes('google.com/search') &&
-          !href.includes('duckduckgo.com/y.js')
-        ) {
+        if (!cache.has(href)) {
           cache.add(href);
           results.push({
             url: normalizeUrl(href),
@@ -286,17 +203,9 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
       }
     }
 
-    debug.logResponse(debugOptions, 'DuckDuckGo Text Search successful', {
-      status: 'success',
-      itemCount: results.length,
-    });
-
     return results;
   }
 
-  /**
-   * Performs an image search using DuckDuckGo's API
-   */
   async function searchImages(
     query: string,
     region: string,
@@ -305,30 +214,17 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
     debugOptions?: DebugOptions,
     timeout?: number
   ): Promise<SearchResult[]> {
-    debug.logRequest(debugOptions, 'DuckDuckGo Images Search request', { query, region });
-
-    // First, get the vqd parameter by making a request to the main search page
-    const initialResponse = await get<string>('https://duckduckgo.com', {
-      headers: {
-        ...headers,
-        Referer: 'https://duckduckgo.com/',
-      },
+    const initialResult = await get<string>('https://duckduckgo.com', {
+      headers: { ...headers, Referer: 'https://duckduckgo.com/' },
       timeout,
     });
+    if (initialResult.isErr()) throw initialResult.error;
+    const initialResponse = initialResult.value;
 
-    const vqd = extractVqd(initialResponse, query);
-    if (!vqd) {
-      throw new Error('Failed to extract vqd parameter for DuckDuckGo Images Search');
-    }
+    const vqd = extractVqd(initialResponse);
+    if (!vqd) throw new Error('Failed to extract vqd parameter for DuckDuckGo Images Search');
 
-    // Map safesearch to DuckDuckGo's format
-    const safesearchMapping: Record<string, string> = {
-      on: '1',
-      moderate: '1',
-      off: '-1',
-    };
-
-    // Get the URL with parameters
+    const safesearchMapping: Record<string, string> = { on: '1', moderate: '1', off: '-1' };
     const searchUrl = new URL(baseUrls.images);
     searchUrl.searchParams.append('l', region);
     searchUrl.searchParams.append('o', 'json');
@@ -336,22 +232,17 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
     searchUrl.searchParams.append('vqd', vqd);
     searchUrl.searchParams.append('p', safesearchMapping[safeSearch.toLowerCase()] || '1');
 
-    // Perform the image search request
-    const response = await get<DuckDuckGoImagesResponse>(searchUrl.toString(), {
-      headers: {
-        ...headers,
-        Referer: 'https://duckduckgo.com/',
-      },
+    const result = await get<DuckDuckGoImagesResponse>(searchUrl.toString(), {
+      headers: { ...headers, Referer: 'https://duckduckgo.com/' },
       timeout,
     });
+    if (result.isErr()) throw result.error;
+    const response = result.value;
 
     const results: SearchResult[] = [];
-    const cache = new Set<string>();
-
     if (response.results) {
       for (const img of response.results) {
-        if (!cache.has(img.image) && results.length < maxResults) {
-          cache.add(img.image);
+        if (results.length < maxResults) {
           results.push({
             url: normalizeUrl(img.url),
             title: img.title,
@@ -362,50 +253,28 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
         }
       }
     }
-
-    debug.logResponse(debugOptions, 'DuckDuckGo Images Search successful', {
-      status: 'success',
-      itemCount: results.length,
-    });
-
     return results;
   }
 
-  /**
-   * Performs a news search using DuckDuckGo's API
-   */
   async function searchNews(
     query: string,
     region: string,
     safeSearch: string,
     maxResults: number,
-    debugOptions?: DebugOptions,
+    _debugOptions?: DebugOptions,
     timeout?: number
   ): Promise<SearchResult[]> {
-    debug.logRequest(debugOptions, 'DuckDuckGo News Search request', { query, region });
-
-    // First, get the vqd parameter by making a request to the main search page
-    const initialResponse = await get<string>('https://duckduckgo.com', {
-      headers: {
-        ...headers,
-        Referer: 'https://duckduckgo.com/',
-      },
+    const initialResult = await get<string>('https://duckduckgo.com', {
+      headers: { ...headers, Referer: 'https://duckduckgo.com/' },
       timeout,
     });
+    if (initialResult.isErr()) throw initialResult.error;
+    const initialResponse = initialResult.value;
 
-    const vqd = extractVqd(initialResponse, query);
-    if (!vqd) {
-      throw new Error('Failed to extract vqd parameter for DuckDuckGo News Search');
-    }
+    const vqd = extractVqd(initialResponse);
+    if (!vqd) throw new Error('Failed to extract vqd parameter for DuckDuckGo News Search');
 
-    // Map safesearch to DuckDuckGo's format
-    const safesearchMapping: Record<string, string> = {
-      on: '1',
-      moderate: '-1',
-      off: '-2',
-    };
-
-    // Get the URL with parameters
+    const safesearchMapping: Record<string, string> = { on: '1', moderate: '-1', off: '-2' };
     const searchUrl = new URL(baseUrls.news);
     searchUrl.searchParams.append('l', region);
     searchUrl.searchParams.append('o', 'json');
@@ -414,66 +283,41 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
     searchUrl.searchParams.append('vqd', vqd);
     searchUrl.searchParams.append('p', safesearchMapping[safeSearch.toLowerCase()] || '-1');
 
-    // Perform the news search request
-    const response = await get<DuckDuckGoNewsResponse>(searchUrl.toString(), {
+    const result = await get<DuckDuckGoNewsResponse>(searchUrl.toString(), {
       headers,
       timeout,
     });
+    if (result.isErr()) throw result.error;
+    const response = result.value;
 
     const results: SearchResult[] = [];
-    const cache = new Set<string>();
-
     if (response.results) {
       for (const news of response.results) {
-        if (!cache.has(news.url) && results.length < maxResults) {
-          cache.add(news.url);
+        if (results.length < maxResults) {
           results.push({
             url: normalizeUrl(news.url),
             title: news.title,
-            snippet: news.body,
+            snippet: normalizeText(news.body),
             publishedDate: news.date,
             provider: 'duckduckgo',
-            raw: {
-              ...news,
-              image: news.image ? normalizeUrl(news.image) : undefined,
-            },
+            raw: { ...news, image: news.image ? normalizeUrl(news.image) : undefined },
           });
         }
       }
     }
-
-    debug.logResponse(debugOptions, 'DuckDuckGo News Search successful', {
-      status: 'success',
-      itemCount: results.length,
-    });
-
     return results;
   }
 }
 
-/**
- * Pre-configured DuckDuckGo search provider.
- * DuckDuckGo does not require an API key, but you can configure other options.
- */
 export const duckduckgo = {
   name: 'duckduckgo',
-  config: { apiKey: '' }, // No API key needed for DuckDuckGo
-
-  /**
-   * Configure the DuckDuckGo provider
-   *
-   * @param config DuckDuckGo configuration options
-   * @returns Configured DuckDuckGo provider
-   */
+  config: { apiKey: '' },
   configure: (config: DuckDuckGoConfig = {}): SearchProvider => createDuckDuckGoProvider(config),
-
-  /**
-   * Search implementation that ensures provider is properly configured before use
-   * This is a placeholder and will be overridden by `configure`
-   */
-  search: async (_options: SearchOptions): Promise<SearchResult[]> => {
-    throw new Error(
-      'DuckDuckGo provider must be configured before use. Call duckduckgo.configure() first, even with empty options if defaults are fine.'
+  search: async (_options: SearchOptions) => {
+    return err(
+      new Error(
+        'DuckDuckGo provider must be configured before use. Call duckduckgo.configure() first.'
+      )
     );
   },
-};
+} as unknown as SearchProvider & { configure: (config: DuckDuckGoConfig) => SearchProvider };

@@ -18,6 +18,10 @@ dist/
 build/
 lib/
 
+# Internal Docs
+/docs/
+
+
 # TypeScript
 *.tsbuildinfo
 

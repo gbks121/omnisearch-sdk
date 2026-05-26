@@ -42,11 +42,31 @@ async function search() {
       maxResults: 10,
     });
 
-    console.log(results);
+    // Results is an array of SearchResult objects
+    results.forEach(res => {
+      console.log(`[${res.provider}] ${res.title} - ${res.url}`);
+    });
   } catch (error) {
     // webSearch throws if ALL providers fail
     console.error('Search failed:', error.message);
   }
+}
+```
+
+## 📋 Response Structure
+
+All providers return a standardized `SearchResult` object:
+
+```typescript
+interface SearchResult {
+  url: string;           // Validated URL of the result
+  title: string;         // Result title
+  snippet?: string;      // Short description or snippet
+  content?: string;      // Full content (if supported by provider, e.g. Exa)
+  domain?: string;       // Extracted domain name
+  publishedDate?: string;// RFC3339 or ISO8601 date string
+  provider: string;      // Name of the provider (e.g. 'google')
+  raw?: any;             // The original unmapped response item
 }
 ```
 
@@ -122,6 +142,22 @@ await google.search({
   query: 'TypeScript', 
   timeout: 2000 
 });
+```
+
+### Provider-Specific Options
+
+Each provider can have unique options. You can use these by calling the provider's `search` method directly.
+
+```typescript
+import { createArxivProvider, createBraveProvider } from 'omnisearch-sdk';
+
+// Arxiv: Search by ID list instead of text query
+const arxiv = createArxivProvider();
+await arxiv.search({ idList: '2305.02392,2305.02393' });
+
+// Brave: Search news instead of web
+const brave = createBraveProvider({ apiKey: '...' });
+await brave.search({ query: 'SpaceX', searchType: 'news' });
 ```
 
 ### Debugging

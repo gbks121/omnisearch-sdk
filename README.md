@@ -84,7 +84,7 @@ interface SearchResult {
 | **DuckDuckGo** | `createDuckDuckGoProvider` | None (Scraping)                 |
 | **Parallel**   | `createParallelProvider`   | API Key                         |
 
-> **Note on Google:** As of Jan 2026, new Programmable Search Engines are restricted to searching specific domains (up to 50). Whole-web search is only available on engines created before this change (until Jan 2027). For general web search, consider Brave, SerpAPI, or DuckDuckGo.
+> **Note on Google:** As of Jan 2026, new Programmable Search Engines are restricted to searching specific domains (up to 50). Whole-web search is only available on engines created before this change (until Jan 2027). The Custom Search JSON API is closed to new customers.
 
 ## 🧩 Advanced Usage
 

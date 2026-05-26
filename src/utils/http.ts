@@ -1,4 +1,4 @@
-import { ResultAsync, err, ok } from 'neverthrow';
+import { ResultAsync } from 'neverthrow';
 
 /**
  * HTTP request method types
@@ -101,8 +101,9 @@ export function makeRequest<T>(
           if (typeof responseBody === 'string' && responseBody) {
             message += ` - ${responseBody}`;
           } else if (responseBody && typeof responseBody === 'object') {
-            const body = responseBody as any;
-            const extra = body.message || body.error || body.detail || body.error_message || body.errorMessage;
+            const body = responseBody as Record<string, unknown>;
+            const extra =
+              body.message || body.error || body.detail || body.error_message || body.errorMessage;
             if (extra && typeof extra === 'string') {
               message += ` - ${extra}`;
             }
@@ -111,17 +112,21 @@ export function makeRequest<T>(
           throw new HttpError(message, response.status, response, responseBody);
         }
 
-        const contentType = response.headers && typeof response.headers.get === 'function' 
-          ? (response.headers.get('content-type') ?? '')
-          : '';
-          
+        const contentType =
+          response.headers && typeof response.headers.get === 'function'
+            ? (response.headers.get('content-type') ?? '')
+            : '';
+
         if (contentType.includes('application/json')) {
           return (await response.json()) as T;
         } else {
           const text = await response.text();
           try {
             // Try parsing as JSON anyway if it looks like JSON
-            if (typeof text === 'string' && (text.trim().startsWith('{') || text.trim().startsWith('['))) {
+            if (
+              typeof text === 'string' &&
+              (text.trim().startsWith('{') || text.trim().startsWith('['))
+            ) {
               return JSON.parse(text) as T;
             }
           } catch {

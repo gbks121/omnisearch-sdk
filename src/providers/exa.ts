@@ -1,4 +1,4 @@
-import { SearchOptions, SearchProvider, SearchResult, ProviderConfig } from '../types';
+import { SearchOptions, SearchResult, ProviderConfig } from '../types';
 import { post } from '../utils';
 import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';

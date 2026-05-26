@@ -96,9 +96,9 @@ export interface ProviderConfig {
  */
 export interface WebSearchOptions extends SearchOptions {
   /** Array of search providers to query */
-  provider: SearchProvider<any, any>[];
+  provider: SearchProvider[];
   /** Max concurrency for p-map */
   concurrency?: number;
   /** Additional provider-specific options */
-  [key: string]: any;
+  [key: string]: unknown;
 }

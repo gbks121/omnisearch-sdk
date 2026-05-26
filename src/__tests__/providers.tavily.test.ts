@@ -110,7 +110,12 @@ describe('createTavilyProvider', () => {
   it('includes locale when language and region are provided', async () => {
     mockFetch(200, sampleTavilyResponse);
     const provider = createTavilyProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', language: 'fr', region: 'FR', retries: 0 });
+    const result = await provider.search({
+      query: 'test',
+      language: 'fr',
+      region: 'FR',
+      retries: 0,
+    });
     expect(result.isOk()).toBe(true);
     const options = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][1];
     const body = JSON.parse(options.body);
@@ -326,4 +331,3 @@ describe('createTavilyProvider', () => {
     }
   });
 });
-

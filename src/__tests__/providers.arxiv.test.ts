@@ -305,7 +305,12 @@ describe('createArxivProvider', () => {
   it('applies sortBy and sortOrder from options', async () => {
     getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test', sortBy: 'submittedDate', sortOrder: 'ascending' });
+    const result = await provider.search({
+      retries: 0,
+      query: 'test',
+      sortBy: 'submittedDate',
+      sortOrder: 'ascending',
+    });
     expect(result.isOk()).toBe(true);
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('sortBy=submittedDate');

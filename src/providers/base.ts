@@ -6,6 +6,10 @@ import { SearchOptions, SearchResult, SearchProvider, ProviderConfig } from '../
 import { HttpError } from '../utils/http';
 import { debug } from '../utils/debug';
 
+interface ExtendedAbortError extends AbortError {
+  originalError: Error;
+}
+
 /**
  * Abstract base class for search providers that handles common concerns:
  * - Throttling
@@ -16,8 +20,7 @@ import { debug } from '../utils/debug';
 export abstract class AbstractSearchProvider<
   TConfig extends ProviderConfig = ProviderConfig,
   TOptions extends SearchOptions = SearchOptions,
-> implements SearchProvider<TConfig, TOptions>
-{
+> implements SearchProvider<TConfig, TOptions> {
   public abstract readonly name: string;
   public readonly config: TConfig;
   private throttledSearch?: (options: TOptions) => Promise<SearchResult[]>;
@@ -34,7 +37,7 @@ export abstract class AbstractSearchProvider<
   /**
    * Optional hook for provider-specific troubleshooting messages
    */
-  protected getTroubleshooting(error: Error, statusCode?: number): string {
+  protected getTroubleshooting(_error: Error, _statusCode?: number): string {
     return '';
   }
 
@@ -59,8 +62,8 @@ export abstract class AbstractSearchProvider<
 
             // Handle p-timeout's TimeoutError
             if (error instanceof Error && error.name === 'TimeoutError') {
-              const abortErr = new AbortError(errorMessage);
-              (abortErr as any).originalError = error;
+              const abortErr = new AbortError(errorMessage) as ExtendedAbortError;
+              abortErr.originalError = error instanceof Error ? error : new Error(String(error));
               throw abortErr;
             }
 
@@ -69,17 +72,19 @@ export abstract class AbstractSearchProvider<
               error instanceof HttpError ||
               (error !== null && typeof error === 'object' && 'statusCode' in error)
             ) {
-              const statusCode = (error as any).statusCode;
-              if (statusCode === 429 || statusCode >= 500) {
+              const statusCode = (error as Record<string, unknown>).statusCode as
+                | number
+                | undefined;
+              if (statusCode === 429 || (statusCode !== undefined && statusCode >= 500)) {
                 throw error; // Allow retry
               }
-              const abortErr = new AbortError(errorMessage);
-              (abortErr as any).originalError = error;
+              const abortErr = new AbortError(errorMessage) as ExtendedAbortError;
+              abortErr.originalError = error instanceof Error ? error : new Error(String(error));
               throw abortErr;
             }
 
-            const abortErr = new AbortError(errorMessage);
-            (abortErr as any).originalError = error;
+            const abortErr = new AbortError(errorMessage) as ExtendedAbortError;
+            abortErr.originalError = error instanceof Error ? error : new Error(String(error));
             throw abortErr;
           }
         },
@@ -129,7 +134,9 @@ export abstract class AbstractSearchProvider<
         (error.constructor.name === 'AbortError' || 'originalError' in error));
 
     const actualError =
-      isAbortError && (error as any).originalError ? (error as any).originalError : error;
+      isAbortError && (error as Record<string, unknown>).originalError
+        ? (error as Record<string, unknown>).originalError
+        : error;
 
     const isHttpError =
       actualError instanceof HttpError ||
@@ -139,16 +146,17 @@ export abstract class AbstractSearchProvider<
         'message' in actualError);
 
     if (isHttpError) {
-      const httpErr = actualError as any;
-      errObj = httpErr instanceof Error ? httpErr : new Error(httpErr.message || String(httpErr));
-      errorMessage = httpErr.message || String(httpErr);
-      statusCode = httpErr.statusCode;
+      const httpErr = actualError as Record<string, unknown>;
+      errorMessage = (httpErr.message as string) || String(actualError);
+      errObj = actualError instanceof Error ? actualError : new Error(errorMessage);
+      statusCode = httpErr.statusCode as number | undefined;
     } else if (
       actualError instanceof Error ||
       (actualError !== null && typeof actualError === 'object' && 'message' in actualError)
     ) {
       errObj = actualError as Error;
-      errorMessage = (actualError as any).message || String(actualError);
+      errorMessage =
+        ((actualError as Record<string, unknown>).message as string) || String(actualError);
     } else {
       errorMessage = typeof actualError === 'string' ? actualError : JSON.stringify(actualError);
       errObj = new Error(errorMessage);
@@ -158,7 +166,8 @@ export abstract class AbstractSearchProvider<
 
     if (!troubleshooting) {
       if (statusCode === 401 || statusCode === 403) {
-        troubleshooting = 'Authentication failed or Access denied. Your API key or token may be invalid.';
+        troubleshooting =
+          'Authentication failed or Access denied. Your API key or token may be invalid.';
       } else if (statusCode === 400) {
         troubleshooting = 'Bad request. Check your search parameters or query for invalid content.';
       } else if (statusCode === 429) {

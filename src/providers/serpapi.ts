@@ -1,4 +1,4 @@
-import { SearchOptions, SearchProvider, SearchResult, ProviderConfig } from '../types';
+import { SearchOptions, SearchResult, ProviderConfig } from '../types';
 import { buildUrl, get } from '../utils';
 import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
@@ -81,13 +81,13 @@ export class SerpApiSearchProvider extends AbstractSearchProvider<SerpApiConfig>
       return 'Authentication failed. Check that your SerpAPI key is valid. Verify that you have enough credits remaining in your SerpAPI account.';
     }
     if (statusCode === 401 || statusCode === 403) {
-      return "Authentication failed or Access denied. Check your apiKey and make sure it's valid and has the correct permissions."; 
+      return "Authentication failed or Access denied. Check your apiKey and make sure it's valid and has the correct permissions.";
     }
     if (statusCode === 400) {
       return 'Bad request. This is likely due to invalid request parameters. Check your query and other search options.';
     }
     if (statusCode === 429) {
-      return "Rate limit exceeded. You've exceeded the rate limit for this API. Try again later or reduce your request frequency."; 
+      return "Rate limit exceeded. You've exceeded the rate limit for this API. Try again later or reduce your request frequency.";
     }
     if (statusCode && statusCode >= 500) {
       return 'Server error. The search provider is experiencing issues. Try again later.';

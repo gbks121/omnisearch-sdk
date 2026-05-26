@@ -200,9 +200,7 @@ export class GoogleSearchProvider extends AbstractSearchProvider<GoogleSearchCon
         if (item.pagemap?.metatags && item.pagemap.metatags.length > 0) {
           const metatags = item.pagemap.metatags[0];
           publishedDate =
-            metatags['article:published_time'] ||
-            metatags['date'] ||
-            metatags['og:updated_time'];
+            metatags['article:published_time'] || metatags['date'] || metatags['og:updated_time'];
         }
 
         return {

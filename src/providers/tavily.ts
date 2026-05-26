@@ -1,4 +1,4 @@
-import { SearchOptions, SearchProvider, SearchResult, ProviderConfig } from '../types';
+import { SearchOptions, SearchResult, ProviderConfig } from '../types';
 import { post } from '../utils';
 import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
@@ -72,13 +72,13 @@ export class TavilySearchProvider extends AbstractSearchProvider<TavilyConfig> {
 
   protected getTroubleshooting(_error: Error, statusCode?: number): string {
     if (statusCode === 401 || statusCode === 403) {
-      return "Authentication failed or Access denied. Check your apiKey and make sure it's valid and has the correct permissions."; 
+      return "Authentication failed or Access denied. Check your apiKey and make sure it's valid and has the correct permissions.";
     }
     if (statusCode === 400) {
       return 'Bad request. This is likely due to invalid request parameters. Check your query and other search options.';
     }
     if (statusCode === 429) {
-      return "Rate limit exceeded. You've exceeded the rate limit for this API. Try again later or reduce your request frequency."; 
+      return "Rate limit exceeded. You've exceeded the rate limit for this API. Try again later or reduce your request frequency.";
     }
     if (statusCode && statusCode >= 500) {
       return 'Server error. The search provider is experiencing issues. Try again later.';
@@ -107,7 +107,7 @@ export class TavilySearchProvider extends AbstractSearchProvider<TavilyConfig> {
       query: query.trim(),
       limit: maxResults,
       include_answer: this.config.includeAnswer || false,
-      search_depth: (this.config.searchDepth as any) || 'basic',
+      search_depth: this.config.searchDepth || 'basic',
       sort_by: this.config.sortBy || 'relevance',
     };
 
@@ -130,16 +130,12 @@ export class TavilySearchProvider extends AbstractSearchProvider<TavilyConfig> {
       body: { ...requestBody, api_key: '***' },
     });
 
-    const result = await post<TavilySearchResponse>(
-      baseUrl,
-      requestBody,
-      {
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        timeout,
-      }
-    );
+    const result = await post<TavilySearchResponse>(baseUrl, requestBody, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      timeout,
+    });
     if (result.isErr()) throw result.error;
     const response = result.value;
 

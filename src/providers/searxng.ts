@@ -1,4 +1,4 @@
-import { SearchOptions, SearchProvider, SearchResult, ProviderConfig } from '../types';
+import { SearchOptions, SearchResult, ProviderConfig } from '../types';
 import { get } from '../utils';
 import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
@@ -51,16 +51,16 @@ export class SearXNGSearchProvider extends AbstractSearchProvider<SearXNGConfig>
 
   protected getTroubleshooting(error: Error, statusCode?: number): string {
     if (error.message.includes('not found') || statusCode === 404) {
-      return 'Check if your SearXNG instance URL is correct and that the server is running. Verify the format of your search URL.'; 
+      return 'Check if your SearXNG instance URL is correct and that the server is running. Verify the format of your search URL.';
     }
     if (statusCode === 401 || statusCode === 403) {
-      return "Authentication failed or Access denied. Check your apiKey and make sure it's valid and has the correct permissions."; 
+      return "Authentication failed or Access denied. Check your apiKey and make sure it's valid and has the correct permissions.";
     }
     if (statusCode === 400) {
       return 'Bad request. This is likely due to invalid request parameters. Check your query and other search options.';
     }
     if (statusCode === 429) {
-      return "Rate limit exceeded. You've exceeded the rate limit for this API. Try again later or reduce your request frequency."; 
+      return "Rate limit exceeded. You've exceeded the rate limit for this API. Try again later or reduce your request frequency.";
     }
     if (statusCode && statusCode >= 500) {
       return 'Server error. The search provider is experiencing issues. Try again later.';

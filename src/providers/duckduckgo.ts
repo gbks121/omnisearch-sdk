@@ -1,6 +1,5 @@
-import { SearchOptions, SearchProvider, SearchResult, ProviderConfig, DebugOptions } from '../types';
+import { SearchOptions, SearchResult, ProviderConfig, DebugOptions } from '../types';
 import { get, post } from '../utils';
-import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
 
 /**
@@ -77,7 +76,8 @@ function normalizeUrl(url: string): string {
   if (!url || typeof url !== 'string') return '';
   const trimmed = url.trim();
   if (trimmed.startsWith('//')) return `https:${trimmed}`;
-  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) return `https://${trimmed}`;
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://'))
+    return `https://${trimmed}`;
   return trimmed;
 }
 
@@ -87,7 +87,10 @@ function extractVqd(html: string): string | null {
   return match ? match[1] : null;
 }
 
-export class DuckDuckGoSearchProvider extends AbstractSearchProvider<DuckDuckGoConfig, DuckDuckGoSearchOptions> {
+export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
+  DuckDuckGoConfig,
+  DuckDuckGoSearchOptions
+> {
   public readonly name = 'duckduckgo';
 
   protected getTroubleshooting(error: Error, statusCode?: number): string {
@@ -130,7 +133,9 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<DuckDuckGoC
       'User-Agent':
         this.config.userAgent ||
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-      Referer: this.config.useLite ? 'https://lite.duckduckgo.com/' : 'https://html.duckduckgo.com/',
+      Referer: this.config.useLite
+        ? 'https://lite.duckduckgo.com/'
+        : 'https://html.duckduckgo.com/',
     };
   }
 
@@ -143,7 +148,8 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<DuckDuckGoC
     timeout?: number
   ): Promise<SearchResult[]> {
     const useLite = this.config.useLite || false;
-    const baseUrl = this.config.baseUrl || (useLite ? DEFAULT_BASE_URLS.lite : DEFAULT_BASE_URLS.text);
+    const baseUrl =
+      this.config.baseUrl || (useLite ? DEFAULT_BASE_URLS.lite : DEFAULT_BASE_URLS.text);
     const payload = { q: query, b: '', kl: region };
 
     const result = await post<string>(baseUrl, payload, { headers: this.getHeaders(), timeout });
@@ -153,7 +159,8 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<DuckDuckGoC
     const cache = new Set<string>();
 
     if (useLite) {
-      const resultsRegex = /<a class="result-link" href="([^"]+)">([^<]+)<\/a>.*?<div class="result-snippet">([^<]+)<\/div>/gs;       
+      const resultsRegex =
+        /<a class="result-link" href="([^"]+)">([^<]+)<\/a>.*?<div class="result-snippet">([^<]+)<\/div>/gs;
       let match;
       while ((match = resultsRegex.exec(response)) !== null && results.length < maxResults) {
         const href = match[1];
@@ -168,7 +175,8 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<DuckDuckGoC
         }
       }
     } else {
-      const resultsRegex = /<h2 class="result__title">.*?<a class="result__a" href="([^"]+)"[^>]*>(.*?)<\/a>.*?<\/h2>.*?<a class="result__snippet" [^>]*>(.*?)<\/a>/gs;
+      const resultsRegex =
+        /<h2 class="result__title">.*?<a class="result__a" href="([^"]+)"[^>]*>(.*?)<\/a>.*?<\/h2>.*?<a class="result__snippet" [^>]*>(.*?)<\/a>/gs;
       let match;
       while ((match = resultsRegex.exec(response)) !== null && results.length < maxResults) {
         const href = match[1];

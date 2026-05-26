@@ -1,5 +1,5 @@
 import { debug, get } from '../utils';
-import { SearchProvider, SearchResult, SearchOptions, ProviderConfig } from '../types';
+import { SearchResult, SearchOptions, ProviderConfig } from '../types';
 import { XMLParser } from 'fast-xml-parser';
 import { AbstractSearchProvider } from './base';
 

@@ -1,4 +1,4 @@
-import { SearchOptions, SearchProvider, SearchResult, ProviderConfig } from '../types';
+import { SearchOptions, SearchResult, ProviderConfig } from '../types';
 import { post } from '../utils';
 import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
@@ -151,17 +151,13 @@ export class PerplexitySearchProvider extends AbstractSearchProvider<PerplexityC
       body: { ...requestBody, apiKey: '***' },
     });
 
-    const result = await post<PerplexitySearchResponse>(
-      baseUrl,
-      requestBody,
-      {
-        headers: {
-          Authorization: `Bearer ${this.config.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        timeout,
-      }
-    );
+    const result = await post<PerplexitySearchResponse>(baseUrl, requestBody, {
+      headers: {
+        Authorization: `Bearer ${this.config.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      timeout,
+    });
     if (result.isErr()) throw result.error;
     const response = result.value;
 

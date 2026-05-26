@@ -2,7 +2,6 @@ import { describe, it, expect, vi } from 'vitest';
 import { ok, err } from 'neverthrow';
 import { webSearch } from '../index';
 import type { SearchProvider, SearchResult } from '../types';
-import { HttpError } from '../utils/http';
 
 function makeProvider(
   name: string,
@@ -89,7 +88,12 @@ describe('webSearch', () => {
   });
 
   it('includes provider name in error message when provider fails', async () => {
-    const badProvider = makeProvider('google', [], true, new Error("Search with provider 'google' failed"));
+    const badProvider = makeProvider(
+      'google',
+      [],
+      true,
+      new Error("Search with provider 'google' failed")
+    );
     await expect(webSearch({ provider: [badProvider], query: 'test' })).rejects.toThrow(
       "Search with provider 'google' failed"
     );

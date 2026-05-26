@@ -3,7 +3,7 @@
 This project is a TypeScript SDK for aggregating web search results from multiple providers.
 
 ## 🏗 Tech Stack & Conventions
-- **Runtime:** Node.js >= 18 (ESM)
+- **Runtime:** Node.js >= 24 (ESM)
 - **Language:** TypeScript
 - **Error Handling:** Functional style using `neverthrow`. Avoid `throw` for operational errors; return `Result` or `ResultAsync`.
 - **Validation:** `zod` for schema definition and runtime validation.

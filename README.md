@@ -10,7 +10,7 @@ Inspired by [PlustOrg/search-sdk](https://github.com/PlustOrg/search-sdk), this 
 - **Smart Retries**: Integrated exponential backoff via [`p-retry`](https://github.com/sindresorhus/p-retry) for 429 (Rate Limit) and 5xx errors.
 - **Deadlines & Throttling**: Hard timeouts per request via [`p-timeout`](https://github.com/sindresorhus/p-timeout) and proactive rate limiting with [`p-throttle`](https://github.com/sindresorhus/p-throttle).
 - **Strict Validation**: Type safety with Zod for all provider responses.
-- **Modern ESM**: First-class support for ES Modules and Node 18+.
+- **Modern ESM**: First-class support for ES Modules and Node 24+.
 - **Standardized Architecture**: All providers share a common factory, ensuring consistent behavior and troubleshooting.
 
 ## 🚀 Quick Start

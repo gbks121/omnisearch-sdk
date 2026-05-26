@@ -1,7 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 
-// vi.hoisted runs before vi.mock factories, making mockParseFn available
-// inside the factory closure without hitting a temporal-dead-zone error.
 const { mockParseFn } = vi.hoisted(() => ({ mockParseFn: vi.fn() }));
 
 vi.mock('fast-xml-parser', () => ({
@@ -39,9 +37,6 @@ function createErrorResponse(status: number, body: unknown, statusText: string):
   } as unknown as Response;
 }
 
-// ---------------------------------------------------------------------------
-// Mock feed data — flat fast-xml-parser shape (no _attributes / _text wrappers)
-// ---------------------------------------------------------------------------
 const mockSingleEntry = {
   id: 'http://arxiv.org/abs/2305.00001v1',
   updated: '2023-05-01T00:00:00Z',
@@ -84,7 +79,6 @@ const mockParsedFeedMultiEntry = {
   },
 };
 
-// Single entry — alternate link only (no explicit PDF link), no categories
 const mockSingleEntryNoPdf = {
   ...mockSingleEntry,
   link: [{ href: 'http://arxiv.org/abs/2305.00003v1', rel: 'alternate', type: 'text/html' }],
@@ -100,8 +94,6 @@ const mockParsedFeedSingleEntry = {
     'opensearch:itemsPerPage': '10',
   },
 };
-
-// ---------------------------------------------------------------------------
 
 describe('createArxivProvider', () => {
   beforeEach(() => {
@@ -126,55 +118,43 @@ describe('createArxivProvider', () => {
 
   it('returns error if no query and no idList is provided', async () => {
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('Arxiv search failed:');
-      expect(result.error.message).toContain('either a "query" or an "idList"');
+    try {
+      await provider.search({ retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('Arxiv search failed:');
+      expect((error as Error).message).toContain('either a "query" or an "idList"');
     }
   });
 
   it('returns search results from parsed XML with multiple entries', async () => {
     getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test paper' });
+    const results = await provider.search({ retries: 0, query: 'test paper' });
 
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      const results = result.value;
-      expect(results).toHaveLength(2);
-      expect(results[0].title).toBe('Test Paper Title');
-      expect(results[0].snippet).toBe('Abstract of the test paper');
-      expect(results[0].url).toBe('http://arxiv.org/pdf/2305.00001v1');
-      expect(results[0].publishedDate).toBe('2023-05-01T00:00:00Z');
-      expect(results[0].provider).toBe('arxiv');
-    }
+    expect(results).toHaveLength(2);
+    expect(results[0].title).toBe('Test Paper Title');
+    expect(results[0].snippet).toBe('Abstract of the test paper');
+    expect(results[0].url).toBe('http://arxiv.org/pdf/2305.00001v1');
+    expect(results[0].publishedDate).toBe('2023-05-01T00:00:00Z');
+    expect(results[0].provider).toBe('arxiv');
   });
 
   it('handles single entry in array', async () => {
     getMockParse().mockReturnValueOnce(mockParsedFeedSingleEntry);
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test' });
+    const results = await provider.search({ retries: 0, query: 'test' });
 
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      const results = result.value;
-      expect(results).toHaveLength(1);
-      expect(results[0].title).toBe('Test Paper Title');
-    }
+    expect(results).toHaveLength(1);
+    expect(results[0].title).toBe('Test Paper Title');
   });
 
   it('falls back to abstract URL converted to /pdf/ when no PDF link', async () => {
     getMockParse().mockReturnValueOnce(mockParsedFeedSingleEntry);
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      const results = result.value;
-      // Has only alternate link → converted to /pdf/
-      expect(results[0].url).toContain('/pdf/');
-      expect(results[0].url).toBe('http://arxiv.org/pdf/2305.00003v1');
-    }
+    const results = await provider.search({ retries: 0, query: 'test' });
+    expect(results[0].url).toContain('/pdf/');
+    expect(results[0].url).toBe('http://arxiv.org/pdf/2305.00003v1');
   });
 
   it('returns empty array when no entries in feed', async () => {
@@ -186,114 +166,79 @@ describe('createArxivProvider', () => {
       },
     });
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value).toEqual([]);
-    }
+    const results = await provider.search({ retries: 0, query: 'test' });
+    expect(results).toEqual([]);
   });
 
   it('returns empty when parsedXml is null/empty', async () => {
     getMockParse().mockReturnValueOnce(null);
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value).toEqual([]);
-    }
+    const results = await provider.search({ retries: 0, query: 'test' });
+    expect(results).toEqual([]);
   });
 
   it('returns empty when parsedXml.feed is missing', async () => {
     getMockParse().mockReturnValueOnce({});
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value).toEqual([]);
-    }
+    const results = await provider.search({ retries: 0, query: 'test' });
+    expect(results).toEqual([]);
   });
 
   it('handles multiple authors correctly', async () => {
     getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      const results = result.value;
-      const raw = results[0].raw as Record<string, unknown>;
-      const authors = ((raw.author ?? []) as Array<{ name: string }>).map((a) => a.name);
-      expect(authors).toEqual(['John Doe', 'Jane Smith']);
-    }
+    const results = await provider.search({ retries: 0, query: 'test' });
+    const raw = results[0].raw as Record<string, unknown>;
+    const authors = ((raw.author ?? []) as Array<{ name: string }>).map((a) => a.name);
+    expect(authors).toEqual(['John Doe', 'Jane Smith']);
   });
 
   it('handles single author in array', async () => {
     getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      const results = result.value;
-      const raw = results[1].raw as Record<string, unknown>;
-      const authors = ((raw.author ?? []) as Array<{ name: string }>).map((a) => a.name);
-      expect(authors).toEqual(['Bob Johnson']);
-    }
+    const results = await provider.search({ retries: 0, query: 'test' });
+    const raw = results[1].raw as Record<string, unknown>;
+    const authors = ((raw.author ?? []) as Array<{ name: string }>).map((a) => a.name);
+    expect(authors).toEqual(['Bob Johnson']);
   });
 
   it('handles multiple categories', async () => {
     getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      const results = result.value;
-      const raw = results[1].raw as Record<string, unknown>;
-      const categories = ((raw.category ?? []) as Array<{ term: string }>).map((c) => c.term);
-      expect(categories).toEqual(['cs.LG', 'stat.ML']);
-    }
+    const results = await provider.search({ retries: 0, query: 'test' });
+    const raw = results[1].raw as Record<string, unknown>;
+    const categories = ((raw.category ?? []) as Array<{ term: string }>).map((c) => c.term);
+    expect(categories).toEqual(['cs.LG', 'stat.ML']);
   });
 
   it('extracts single category correctly', async () => {
     getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      const results = result.value;
-      const raw = results[0].raw as Record<string, unknown>;
-      const categories = ((raw.category ?? []) as Array<{ term: string }>).map((c) => c.term);
-      expect(categories).toEqual(['cs.AI']);
-    }
+    const results = await provider.search({ retries: 0, query: 'test' });
+    const raw = results[0].raw as Record<string, unknown>;
+    const categories = ((raw.category ?? []) as Array<{ term: string }>).map((c) => c.term);
+    expect(categories).toEqual(['cs.AI']);
   });
 
   it('cleans up multi-line title', async () => {
     getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      const results = result.value;
-      // Second entry has multi-line title
-      expect(results[1].title).toBe('Another Paper');
-      expect(results[1].title).not.toContain('\n');
-    }
+    const results = await provider.search({ retries: 0, query: 'test' });
+    expect(results[1].title).toBe('Another Paper');
+    expect(results[1].title).not.toContain('\n');
   });
 
   it('cleans up multi-line summary', async () => {
     getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      const results = result.value;
-      expect(results[1].snippet).toBe('Multi-line summary text');
-    }
+    const results = await provider.search({ retries: 0, query: 'test' });
+    expect(results[1].snippet).toBe('Multi-line summary text');
   });
 
   it('uses idList in query params', async () => {
     getMockParse().mockReturnValueOnce(mockParsedFeedSingleEntry);
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, idList: '2305.00001' });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ retries: 0, idList: '2305.00001' });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('id_list=2305.00001');
   });
@@ -301,8 +246,7 @@ describe('createArxivProvider', () => {
   it('includes query in search_query params', async () => {
     getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'machine learning' });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ retries: 0, query: 'machine learning' });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('search_query=machine+learning');
   });
@@ -310,13 +254,12 @@ describe('createArxivProvider', () => {
   it('applies sortBy and sortOrder from options', async () => {
     getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider();
-    const result = await provider.search({
+    await provider.search({
       retries: 0,
       query: 'test',
       sortBy: 'submittedDate',
       sortOrder: 'ascending',
     });
-    expect(result.isOk()).toBe(true);
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('sortBy=submittedDate');
     expect(url).toContain('sortOrder=ascending');
@@ -325,8 +268,7 @@ describe('createArxivProvider', () => {
   it('applies start param', async () => {
     getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test', start: 10 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ retries: 0, query: 'test', start: 10 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('start=10');
   });
@@ -334,8 +276,7 @@ describe('createArxivProvider', () => {
   it('uses custom baseUrl when provided', async () => {
     getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
     const provider = createArxivProvider({ baseUrl: 'https://custom-arxiv.example.com/api/query' });
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ retries: 0, query: 'test' });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('custom-arxiv.example.com');
   });
@@ -346,22 +287,24 @@ describe('createArxivProvider', () => {
       vi.fn().mockResolvedValue(createErrorResponse(404, { message: 'Not Found' }, 'Not Found'))
     );
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('Arxiv search failed:');
-      expect(result.error.message).toContain('404');
+    try {
+      await provider.search({ retries: 0, query: 'test' });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('Arxiv search failed:');
+      expect((error as Error).message).toContain('404');
     }
   });
 
   it('handles generic Error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('Arxiv search failed:');
-      expect(result.error.message).toContain('Network error');
+    try {
+      await provider.search({ retries: 0, query: 'test' });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('Arxiv search failed:');
+      expect((error as Error).message).toContain('Network error');
     }
   });
 
@@ -370,22 +313,24 @@ describe('createArxivProvider', () => {
       throw new Error('XML parse error');
     });
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('Arxiv search failed:');
-      expect(result.error.message).toContain('XML parse error');
+    try {
+      await provider.search({ retries: 0, query: 'test' });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('Arxiv search failed:');
+      expect((error as Error).message).toContain('XML parse error');
     }
   });
 
   it('handles non-Error throw', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue('string error'));
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('Arxiv search failed:');
-      expect(result.error.message).toContain('string error');
+    try {
+      await provider.search({ retries: 0, query: 'test' });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('Arxiv search failed:');
+      expect((error as Error).message).toContain('string error');
     }
   });
 
@@ -393,10 +338,11 @@ describe('createArxivProvider', () => {
     const plainObject = { message: 'something went wrong' };
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(plainObject));
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('Arxiv search failed:');
+    try {
+      await provider.search({ retries: 0, query: 'test' });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('Arxiv search failed:');
     }
   });
 
@@ -409,11 +355,12 @@ describe('createArxivProvider', () => {
     }
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new CustomError()));
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('Arxiv search failed:');
-      expect(result.error.message).toContain('custom error message');
+    try {
+      await provider.search({ retries: 0, query: 'test' });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('Arxiv search failed:');
+      expect((error as Error).message).toContain('custom error message');
     }
   });
 
@@ -424,11 +371,12 @@ describe('createArxivProvider', () => {
       vi.fn().mockResolvedValue(createErrorResponse(400, errorBody, 'Bad Request'))
     );
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('Arxiv search failed:');
-      expect(result.error.message).toContain('400');
+    try {
+      await provider.search({ retries: 0, query: 'test' });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('Arxiv search failed:');
+      expect((error as Error).message).toContain('400');
     }
   });
 
@@ -453,10 +401,7 @@ describe('createArxivProvider', () => {
       },
     });
     const provider = createArxivProvider();
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value[0].url).toBe('http://arxiv.org/abs/fallback');
-    }
+    const results = await provider.search({ retries: 0, query: 'test' });
+    expect(results[0].url).toBe('http://arxiv.org/abs/fallback');
   });
 });

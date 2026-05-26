@@ -49,59 +49,52 @@ describe('createExaProvider', () => {
     expect(provider.name).toBe('exa');
   });
 
-  it('returns error if query is empty or whitespace', async () => {
+  it('throws if query is empty or whitespace', async () => {
     const provider = createExaProvider({ apiKey: 'test-key' });
-    const result1 = await provider.search({ retries: 0, query: '' });
-    expect(result1.isErr()).toBe(true);
-    if (result1.isErr()) {
-      expect(result1.error.message).toContain('Exa search failed:');
-      expect(result1.error.message).toContain('requires a query');
+
+    try {
+      await provider.search({ retries: 0, query: '' });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('Exa search failed:');
+      expect((error as Error).message).toContain('requires a query');
     }
 
-    const result2 = await provider.search({ retries: 0, query: '  ' });
-    expect(result2.isErr()).toBe(true);
-    if (result2.isErr()) {
-      expect(result2.error.message).toContain('Exa search failed:');
-      expect(result2.error.message).toContain('requires a query');
+    try {
+      await provider.search({ retries: 0, query: '  ' });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('Exa search failed:');
+      expect((error as Error).message).toContain('requires a query');
     }
   });
 
   it('returns search results correctly', async () => {
     mockFetch(200, sampleExaResponse);
     const provider = createExaProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ retries: 0, query: 'test query' });
+    const results = await provider.search({ retries: 0, query: 'test query' });
 
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      const results = result.value;
-      expect(results).toHaveLength(2);
-      expect(results[0].url).toBe('https://papers.example.com/1234');
-      expect(results[0].title).toBe('Research Paper');
-      expect(results[0].snippet).toBe('Abstract text here');
-      expect(results[0].domain).toBe('papers.example.com');
-      expect(results[0].publishedDate).toBe('2024-01-15');
-      expect(results[0].provider).toBe('exa');
-    }
+    expect(results).toHaveLength(2);
+    expect(results[0].url).toBe('https://papers.example.com/1234');
+    expect(results[0].title).toBe('Research Paper');
+    expect(results[0].snippet).toBe('Abstract text here');
+    expect(results[0].domain).toBe('papers.example.com');
+    expect(results[0].publishedDate).toBe('2024-01-15');
+    expect(results[0].provider).toBe('exa');
   });
 
   it('returns empty array when no results', async () => {
     mockFetch(200, { results: [], query: 'test' });
     const provider = createExaProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value).toEqual([]);
-    }
+    const results = await provider.search({ retries: 0, query: 'test' });
+    expect(results).toEqual([]);
   });
 
   it('returns empty array when results is undefined', async () => {
     mockFetch(200, { query: 'test' });
     const provider = createExaProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value).toEqual([]);
-    }
+    const results = await provider.search({ retries: 0, query: 'test' });
+    expect(results).toEqual([]);
   });
 
   it('handles invalid URL gracefully for domain extraction', async () => {
@@ -111,18 +104,14 @@ describe('createExaProvider', () => {
     };
     mockFetch(200, response);
     const provider = createExaProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value).toEqual([]);
-    }
+    const results = await provider.search({ retries: 0, query: 'test' });
+    expect(results).toEqual([]);
   });
 
   it('sends Authorization Bearer header', async () => {
     mockFetch(200, sampleExaResponse);
     const provider = createExaProvider({ apiKey: 'my-exa-key' });
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ retries: 0, query: 'test' });
     const options = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][1];
     expect(options.headers.Authorization).toBe('Bearer my-exa-key');
   });
@@ -130,8 +119,7 @@ describe('createExaProvider', () => {
   it('sends POST request', async () => {
     mockFetch(200, sampleExaResponse);
     const provider = createExaProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ retries: 0, query: 'test' });
     const options = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][1];
     expect(options.method).toBe('POST');
   });
@@ -139,8 +127,7 @@ describe('createExaProvider', () => {
   it('uses custom model when provided', async () => {
     mockFetch(200, sampleExaResponse);
     const provider = createExaProvider({ apiKey: 'test-key', model: 'embeddings' });
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ retries: 0, query: 'test' });
     const options = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][1];
     const body = JSON.parse(options.body);
     expect(body.model).toBe('embeddings');
@@ -149,8 +136,7 @@ describe('createExaProvider', () => {
   it('defaults to keyword model', async () => {
     mockFetch(200, sampleExaResponse);
     const provider = createExaProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ retries: 0, query: 'test' });
     const options = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][1];
     const body = JSON.parse(options.body);
     expect(body.model).toBe('keyword');
@@ -162,8 +148,7 @@ describe('createExaProvider', () => {
       apiKey: 'test-key',
       baseUrl: 'https://custom-exa.example.com/search',
     });
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ retries: 0, query: 'test' });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('custom-exa.example.com');
   });
@@ -171,99 +156,108 @@ describe('createExaProvider', () => {
   it('returns detailed error on 401', async () => {
     mockFetch(401, { message: 'Unauthorized' }, 'Unauthorized');
     const provider = createExaProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('Exa search failed:');
-      expect(result.error.message).toContain('401');
+    try {
+      await provider.search({ retries: 0, query: 'test' });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('Exa search failed:');
+      expect((error as Error).message).toContain('401');
     }
   });
 
   it('returns detailed error on 403', async () => {
     mockFetch(403, { message: 'Forbidden' }, 'Forbidden');
     const provider = createExaProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('Exa search failed:');
-      expect(result.error.message).toContain('403');
+    try {
+      await provider.search({ retries: 0, query: 'test' });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('Exa search failed:');
+      expect((error as Error).message).toContain('403');
     }
   });
 
   it('returns detailed error on 429', async () => {
     mockFetch(429, { message: 'Too Many Requests' }, 'Too Many Requests');
     const provider = createExaProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('Exa search failed:');
-      expect(result.error.message).toContain('429');
+    try {
+      await provider.search({ retries: 0, query: 'test' });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('Exa search failed:');
+      expect((error as Error).message).toContain('429');
     }
   });
 
   it('returns detailed error on 400 with model error', async () => {
     mockFetch(400, { message: 'Invalid model value' }, 'Bad Request');
     const provider = createExaProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('Exa search failed:');
-      expect(result.error.message).toContain('400');
+    try {
+      await provider.search({ retries: 0, query: 'test' });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('Exa search failed:');
+      expect((error as Error).message).toContain('400');
     }
   });
 
   it('returns detailed error on 400 with max_results error', async () => {
     mockFetch(400, { message: 'max_results must be positive' }, 'Bad Request');
     const provider = createExaProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('Exa search failed:');
-      expect(result.error.message).toContain('400');
+    try {
+      await provider.search({ retries: 0, query: 'test' });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('Exa search failed:');
+      expect((error as Error).message).toContain('400');
     }
   });
 
   it('returns detailed error on 500+', async () => {
     mockFetch(500, { message: 'Server Error' }, 'Internal Server Error');
     const provider = createExaProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('Exa search failed:');
-      expect(result.error.message).toContain('500');
+    try {
+      await provider.search({ retries: 0, query: 'test' });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('Exa search failed:');
+      expect((error as Error).message).toContain('500');
     }
   });
 
   it('handles generic Error with token mention', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Invalid token')));
     const provider = createExaProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('Exa search failed:');
-      expect(result.error.message).toContain('token');
+    try {
+      await provider.search({ retries: 0, query: 'test' });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('Exa search failed:');
+      expect((error as Error).message).toContain('token');
     }
   });
 
   it('handles generic Error with timeout mention', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Request timeout occurred')));
     const provider = createExaProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('Exa search failed:');
-      expect(result.error.message).toContain('timeout');
+    try {
+      await provider.search({ retries: 0, query: 'test' });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('Exa search failed:');
+      expect((error as Error).message).toContain('timeout');
     }
   });
 
   it('wraps non-Error throws', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue('string error'));
     const provider = createExaProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ retries: 0, query: 'test' });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('Exa search failed:');
-      expect(result.error.message).toContain('string error');
+    try {
+      await provider.search({ retries: 0, query: 'test' });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('Exa search failed:');
+      expect((error as Error).message).toContain('string error');
     }
   });
 });

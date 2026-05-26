@@ -1,11 +1,7 @@
-import { SearchOptions, SearchResult, ProviderConfig } from '../types';
+import { SearchQuery, SearchResult, ProviderConfig } from '../types';
 import { get, extractDomain, clampMaxResults } from '../utils';
-import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
 
-/**
- * SearXNG API response types
- */
 interface SearXNGResult {
   url: string;
   title: string;
@@ -29,13 +25,8 @@ interface SearXNGResponse {
   results: SearXNGResult[];
 }
 
-/**
- * SearXNG configuration options
- */
 export interface SearXNGConfig extends ProviderConfig {
-  /** Base URL for SearXNG instance (without query params) */
   baseUrl: string;
-  /** Additional request parameters */
   additionalParams?: Record<string, string>;
 }
 
@@ -71,8 +62,8 @@ export class SearXNGSearchProvider extends AbstractSearchProvider<SearXNGConfig>
     return '';
   }
 
-  protected async doSearch(options: SearchOptions): Promise<SearchResult[]> {
-    const { query, maxResults = 10, language, safeSearch, timeout, debug: debugOptions } = options;
+  protected async doSearch(options: SearchQuery): Promise<SearchResult[]> {
+    const { query, maxResults = 10, language, safeSearch, timeout } = options;
 
     if (!query || !query.trim()) {
       throw new Error('SearXNG search requires a query.');
@@ -107,34 +98,8 @@ export class SearXNGSearchProvider extends AbstractSearchProvider<SearXNGConfig>
       searchUrl.searchParams.append('api_key', this.config.apiKey);
     }
 
-    debug.logRequest(debugOptions, 'SearXNG Search request', {
-      url: searchUrl.toString().replace(/api_key=([^&]*)/, 'api_key=***'),
-      params: {
-        q: query,
-        count: clampedMaxResults,
-        language,
-        safesearch: safeSearch
-          ? safeSearch === 'off'
-            ? '0'
-            : safeSearch === 'moderate'
-              ? '1'
-              : '2'
-          : undefined,
-        ...this.config.additionalParams,
-      },
-    });
-
-    const result = await get<SearXNGResponse>(searchUrl.toString(), {
+    const response = await get<SearXNGResponse>(searchUrl.toString(), {
       timeout,
-    });
-    if (result.isErr()) throw result.error;
-    const response = result.value;
-
-    debug.logResponse(debugOptions, 'SearXNG Search raw response', {
-      status: 'success',
-      itemCount: response.results?.length || 0,
-      totalResults: response.number_of_results || 0,
-      query: response.query,
     });
 
     if (!response.results || response.results.length === 0) {
@@ -155,9 +120,6 @@ export class SearXNGSearchProvider extends AbstractSearchProvider<SearXNGConfig>
   }
 }
 
-/**
- * Creates a SearXNG search provider instance
- */
 export function createSearXNGProvider(config: SearXNGConfig): SearXNGSearchProvider {
   return new SearXNGSearchProvider(config);
 }

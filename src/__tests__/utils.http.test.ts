@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HttpError, makeRequest, get, post, buildUrl } from '../utils/http';
 
-// Helper to create a mock Response
 function mockResponse(status: number, body: unknown, statusText = 'OK', isJson = true): Response {
   const bodyStr = isJson ? JSON.stringify(body) : (body as string);
   return {
@@ -91,10 +90,7 @@ describe('makeRequest', () => {
     fetchMock.mockResolvedValueOnce(mockResponse(200, responseData));
 
     const result = await makeRequest<typeof responseData>('https://example.com/api');
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value).toEqual(responseData);
-    }
+    expect(result).toEqual(responseData);
     expect(fetchMock).toHaveBeenCalledWith(
       'https://example.com/api',
       expect.objectContaining({ method: 'GET' })
@@ -157,40 +153,43 @@ describe('makeRequest', () => {
     expect(callArgs.body).toBeUndefined();
   });
 
-  it('returns HttpError on non-OK response', async () => {
+  it('throws HttpError on non-OK response', async () => {
     const errorBody = { message: 'Not found' };
     fetchMock.mockResolvedValue(mockResponse(404, errorBody, 'Not Found'));
 
-    const result = await makeRequest('https://example.com/api');
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error).toBeInstanceOf(HttpError);
-      const httpErr = result.error as HttpError;
+    try {
+      await makeRequest('https://example.com/api');
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect(error).toBeInstanceOf(HttpError);
+      const httpErr = error as HttpError;
       expect(httpErr.statusCode).toBe(404);
       expect(httpErr.responseBody).toEqual(errorBody);
     }
   });
 
-  it('returns timeout error when request exceeds timeout', async () => {
+  it('throws timeout error when request exceeds timeout', async () => {
     const abortError = new Error('The operation was aborted');
     abortError.name = 'AbortError';
     fetchMock.mockRejectedValueOnce(abortError);
 
-    const result = await makeRequest('https://example.com/api', { timeout: 100 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('timed out');
+    try {
+      await makeRequest('https://example.com/api', { timeout: 100 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('timed out');
     }
   });
 
-  it('returns other errors', async () => {
+  it('throws other errors', async () => {
     const networkError = new Error('Network error');
     fetchMock.mockRejectedValueOnce(networkError);
 
-    const result = await makeRequest('https://example.com/api');
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toBe('Network error');
+    try {
+      await makeRequest('https://example.com/api');
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toBe('Network error');
     }
   });
 });
@@ -210,10 +209,7 @@ describe('get', () => {
   it('makes a GET request', async () => {
     fetchMock.mockResolvedValueOnce(mockResponse(200, { data: 'test' }));
     const result = await get<{ data: string }>('https://example.com/api');
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value).toEqual({ data: 'test' });
-    }
+    expect(result).toEqual({ data: 'test' });
     expect(fetchMock).toHaveBeenCalledWith(
       'https://example.com/api',
       expect.objectContaining({ method: 'GET' })
@@ -237,10 +233,7 @@ describe('post', () => {
     fetchMock.mockResolvedValueOnce(mockResponse(200, { success: true }));
     const body = { query: 'test search' };
     const result = await post<{ success: boolean }>('https://example.com/api', body);
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value).toEqual({ success: true });
-    }
+    expect(result).toEqual({ success: true });
     expect(fetchMock).toHaveBeenCalledWith(
       'https://example.com/api',
       expect.objectContaining({ method: 'POST', body: JSON.stringify(body) })

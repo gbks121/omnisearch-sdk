@@ -51,66 +51,58 @@ describe('createSearXNGProvider', () => {
     expect(provider.name).toBe('searxng');
   });
 
-  it('returns error if query is empty or whitespace', async () => {
+  it('throws if query is empty or whitespace', async () => {
     const provider = createSearXNGProvider({ baseUrl: 'https://searxng.example.com/search' });
-    const result1 = await provider.search({ query: '', retries: 0 });
-    expect(result1.isErr()).toBe(true);
-    if (result1.isErr()) {
-      expect(result1.error.message).toContain('SearXNG search failed');
-      expect(result1.error.message).toContain('requires a query');
+
+    try {
+      await provider.search({ query: '', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('SearXNG search failed');
+      expect((error as Error).message).toContain('requires a query');
     }
 
-    const result2 = await provider.search({ query: '  ', retries: 0 });
-    expect(result2.isErr()).toBe(true);
-    if (result2.isErr()) {
-      expect(result2.error.message).toContain('SearXNG search failed');
-      expect(result2.error.message).toContain('requires a query');
+    try {
+      await provider.search({ query: '  ', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('SearXNG search failed');
+      expect((error as Error).message).toContain('requires a query');
     }
   });
 
   it('returns search results correctly', async () => {
     mockFetch(200, sampleSearXNGResponse);
     const provider = createSearXNGProvider({ baseUrl: 'https://searxng.example.com/search' });
-    const result = await provider.search({ query: 'test', retries: 0 });
+    const results = await provider.search({ query: 'test', retries: 0 });
 
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      const results = result.value;
-      expect(results).toHaveLength(2);
-      expect(results[0].url).toBe('https://example.com/result');
-      expect(results[0].title).toBe('SearXNG Result');
-      expect(results[0].snippet).toBe('SearXNG content snippet');
-      expect(results[0].domain).toBe('example.com');
-      expect(results[0].publishedDate).toBe('2024-01-01');
-      expect(results[0].provider).toBe('searxng');
-    }
+    expect(results).toHaveLength(2);
+    expect(results[0].url).toBe('https://example.com/result');
+    expect(results[0].title).toBe('SearXNG Result');
+    expect(results[0].snippet).toBe('SearXNG content snippet');
+    expect(results[0].domain).toBe('example.com');
+    expect(results[0].publishedDate).toBe('2024-01-01');
+    expect(results[0].provider).toBe('searxng');
   });
 
   it('handles null publishedDate', async () => {
     mockFetch(200, sampleSearXNGResponse);
     const provider = createSearXNGProvider({ baseUrl: 'https://searxng.example.com/search' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value[1].publishedDate).toBeUndefined();
-    }
+    const results = await provider.search({ query: 'test', retries: 0 });
+    expect(results[1].publishedDate).toBeUndefined();
   });
 
   it('returns empty array when no results', async () => {
     mockFetch(200, { ...sampleSearXNGResponse, results: [] });
     const provider = createSearXNGProvider({ baseUrl: 'https://searxng.example.com/search' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value).toEqual([]);
-    }
+    const results = await provider.search({ query: 'test', retries: 0 });
+    expect(results).toEqual([]);
   });
 
   it('applies language parameter', async () => {
     mockFetch(200, sampleSearXNGResponse);
     const provider = createSearXNGProvider({ baseUrl: 'https://searxng.example.com/search' });
-    const result = await provider.search({ query: 'test', language: 'de', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', language: 'de', retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('language=de');
   });
@@ -118,8 +110,7 @@ describe('createSearXNGProvider', () => {
   it('applies safeSearch off (0)', async () => {
     mockFetch(200, sampleSearXNGResponse);
     const provider = createSearXNGProvider({ baseUrl: 'https://searxng.example.com/search' });
-    const result = await provider.search({ query: 'test', safeSearch: 'off', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', safeSearch: 'off', retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('safesearch=0');
   });
@@ -127,8 +118,7 @@ describe('createSearXNGProvider', () => {
   it('applies safeSearch moderate (1)', async () => {
     mockFetch(200, sampleSearXNGResponse);
     const provider = createSearXNGProvider({ baseUrl: 'https://searxng.example.com/search' });
-    const result = await provider.search({ query: 'test', safeSearch: 'moderate', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', safeSearch: 'moderate', retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('safesearch=1');
   });
@@ -136,8 +126,7 @@ describe('createSearXNGProvider', () => {
   it('applies safeSearch strict (2)', async () => {
     mockFetch(200, sampleSearXNGResponse);
     const provider = createSearXNGProvider({ baseUrl: 'https://searxng.example.com/search' });
-    const result = await provider.search({ query: 'test', safeSearch: 'strict', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', safeSearch: 'strict', retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('safesearch=2');
   });
@@ -148,8 +137,7 @@ describe('createSearXNGProvider', () => {
       baseUrl: 'https://searxng.example.com/search',
       additionalParams: { categories: 'news', engines: 'google,bing' },
     });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('categories=news');
     expect(url).toContain('engines=google%2Cbing');
@@ -161,8 +149,7 @@ describe('createSearXNGProvider', () => {
       baseUrl: 'https://searxng.example.com/search',
       apiKey: 'secret-key',
     });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('api_key=secret-key');
   });
@@ -174,109 +161,115 @@ describe('createSearXNGProvider', () => {
     };
     mockFetch(200, response);
     const provider = createSearXNGProvider({ baseUrl: 'https://searxng.example.com/search' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value).toEqual([]);
-    }
+    const results = await provider.search({ query: 'test', retries: 0 });
+    expect(results).toEqual([]);
   });
 
-  it('returns detailed error on 401/403', async () => {
+  it('throws detailed error on 401/403', async () => {
     mockFetch(401, { message: 'Unauthorized' }, 'Unauthorized');
     const provider = createSearXNGProvider({ baseUrl: 'https://searxng.example.com/search' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('SearXNG search failed');
-      expect(result.error.message).toContain('401');
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('SearXNG search failed');
+      expect((error as Error).message).toContain('401');
     }
   });
 
-  it('returns detailed error on 429', async () => {
+  it('throws detailed error on 429', async () => {
     mockFetch(429, { message: 'Too Many Requests' }, 'Too Many Requests');
     const provider = createSearXNGProvider({ baseUrl: 'https://searxng.example.com/search' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('SearXNG search failed');
-      expect(result.error.message).toContain('429');
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('SearXNG search failed');
+      expect((error as Error).message).toContain('429');
     }
   });
 
-  it('returns detailed error on 404', async () => {
+  it('throws detailed error on 404', async () => {
     mockFetch(404, { message: 'Not Found' }, 'Not Found');
     const provider = createSearXNGProvider({ baseUrl: 'https://searxng.example.com/search' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('SearXNG search failed');
-      expect(result.error.message).toContain('404');
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('SearXNG search failed');
+      expect((error as Error).message).toContain('404');
     }
   });
 
-  it('returns detailed error on 400', async () => {
+  it('throws detailed error on 400', async () => {
     mockFetch(400, { message: 'Bad Request' }, 'Bad Request');
     const provider = createSearXNGProvider({ baseUrl: 'https://searxng.example.com/search' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('SearXNG search failed');
-      expect(result.error.message).toContain('400');
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('SearXNG search failed');
+      expect((error as Error).message).toContain('400');
     }
   });
 
-  it('returns detailed error on 500+', async () => {
+  it('throws detailed error on 500+', async () => {
     mockFetch(500, { message: 'Server Error' }, 'Internal Server Error');
     const provider = createSearXNGProvider({ baseUrl: 'https://searxng.example.com/search' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('SearXNG search failed');
-      expect(result.error.message).toContain('500');
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('SearXNG search failed');
+      expect((error as Error).message).toContain('500');
     }
   });
 
   it('handles ECONNREFUSED error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
     const provider = createSearXNGProvider({ baseUrl: 'https://searxng.example.com/search' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('SearXNG search failed');
-      expect(result.error.message).toContain('ECONNREFUSED');
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('SearXNG search failed');
+      expect((error as Error).message).toContain('ECONNREFUSED');
     }
   });
 
   it('handles ENOTFOUND error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ENOTFOUND')));
     const provider = createSearXNGProvider({ baseUrl: 'https://searxng.example.com/search' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('SearXNG search failed');
-      expect(result.error.message).toContain('ENOTFOUND');
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('SearXNG search failed');
+      expect((error as Error).message).toContain('ENOTFOUND');
     }
   });
 
   it('handles timeout error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Request timeout')));
     const provider = createSearXNGProvider({ baseUrl: 'https://searxng.example.com/search' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('SearXNG search failed');
-      expect(result.error.message).toContain('timeout');
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('SearXNG search failed');
+      expect((error as Error).message).toContain('timeout');
     }
   });
 
   it('wraps non-Error throws', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue('string error'));
     const provider = createSearXNGProvider({ baseUrl: 'https://searxng.example.com/search' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('SearXNG search failed');
-      expect(result.error.message).toContain('string error');
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).message).toContain('SearXNG search failed');
+      expect((error as Error).message).toContain('string error');
     }
   });
 });

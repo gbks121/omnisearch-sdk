@@ -1,11 +1,7 @@
-import { SearchOptions, SearchResult, ProviderConfig } from '../types';
+import { SearchQuery, SearchResult, ProviderConfig } from '../types';
 import { post, extractDomain, clampMaxResults } from '../utils';
-import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
 
-/**
- * Parallel Search API response types
- */
 interface ParallelWebSearchResult {
   url: string;
   title?: string;
@@ -28,9 +24,6 @@ interface ParallelSearchResponse {
   }>;
 }
 
-/**
- * Source policy for Parallel search
- */
 interface SourcePolicy {
   include_domains?: string[];
   exclude_domains?: string[];
@@ -38,24 +31,15 @@ interface SourcePolicy {
   before_date?: string;
 }
 
-/**
- * Excerpt settings for Parallel search
- */
 interface ExcerptSettings {
   max_chars_per_result?: number;
   count?: number;
 }
 
-/**
- * Fetch policy for Parallel search
- */
 interface FetchPolicy {
   strategy?: 'cached' | 'live';
 }
 
-/**
- * Parallel Search API request body
- */
 interface ParallelSearchRequestBody {
   objective?: string;
   search_queries?: string[];
@@ -66,42 +50,22 @@ interface ParallelSearchRequestBody {
   fetch_policy?: FetchPolicy;
 }
 
-/**
- * Parallel API configuration options
- */
 export interface ParallelConfig extends ProviderConfig {
-  /** Base URL for Parallel API */
   baseUrl?: string;
-  /** Mode: 'one-shot' for comprehensive results, 'agentic' for concise results */
   mode?: 'one-shot' | 'agentic';
-  /** Maximum number of results */
   maxResults?: number;
-  /** Domains to include in search results */
   includeDomains?: string[];
-  /** Domains to exclude from search results */
   excludeDomains?: string[];
-  /** Start date for filtering results (YYYY-MM-DD format) */
   afterDate?: string;
-  /** End date for filtering results (YYYY-MM-DD format) */
   beforeDate?: string;
-  /** Maximum characters per excerpt */
   maxCharsPerResult?: number;
-  /** Number of excerpts per result */
   excerptCount?: number;
-  /** Fetch strategy: 'cached' for faster results, 'live' for fresher content */
   fetchStrategy?: 'cached' | 'live';
-  /** Optional metadata for client-side tracking and reference */
   metadata?: Record<string, unknown>;
 }
 
-/**
- * Default base URL for Parallel API
- */
 const DEFAULT_BASE_URL = 'https://api.parallel.ai/v1beta/search';
 
-/**
- * Beta header value for Parallel search API
- */
 const PARALLEL_BETA_HEADER = 'search-extract-2025-10-10';
 
 export class ParallelSearchProvider extends AbstractSearchProvider<ParallelConfig> {
@@ -130,8 +94,8 @@ export class ParallelSearchProvider extends AbstractSearchProvider<ParallelConfi
     return '';
   }
 
-  protected async doSearch(options: SearchOptions): Promise<SearchResult[]> {
-    const { query, maxResults = 10, timeout, debug: debugOptions } = options;
+  protected async doSearch(options: SearchQuery): Promise<SearchResult[]> {
+    const { query, maxResults = 10, timeout } = options;
 
     if (!query || !query.trim()) {
       throw new Error('Parallel search requires a query.');
@@ -189,12 +153,7 @@ export class ParallelSearchProvider extends AbstractSearchProvider<ParallelConfi
 
     const baseUrl = this.config.baseUrl || DEFAULT_BASE_URL;
 
-    debug.logRequest(debugOptions, 'Parallel Search request', {
-      url: baseUrl,
-      body: { ...requestBody, apiKey: '***' },
-    });
-
-    const result = await post<ParallelSearchResponse>(baseUrl, requestBody, {
+    const response = await post<ParallelSearchResponse>(baseUrl, requestBody, {
       headers: {
         'x-api-key': this.config.apiKey as string,
         'Content-Type': 'application/json',
@@ -202,22 +161,9 @@ export class ParallelSearchProvider extends AbstractSearchProvider<ParallelConfi
       },
       timeout,
     });
-    if (result.isErr()) throw result.error;
-    const response = result.value;
 
-    debug.logResponse(debugOptions, 'Parallel Search raw response', {
-      status: 'success',
-      itemCount: response.results?.length || 0,
-      searchId: response.search_id || '',
-      warnings: response.warnings || [],
-      usage: response.usage || [],
-    });
-
-    // Log warnings if present
     if (response.warnings && response.warnings.length > 0) {
-      debug.log(debugOptions, 'Parallel Search warnings', {
-        warnings: response.warnings,
-      });
+      console.warn('[@omnisearch] Parallel Search warnings:', response.warnings);
     }
 
     if (!response.results || response.results.length === 0) {
@@ -243,9 +189,6 @@ export class ParallelSearchProvider extends AbstractSearchProvider<ParallelConfi
   }
 }
 
-/**
- * Creates a Parallel search provider instance
- */
 export function createParallelProvider(config: ParallelConfig): ParallelSearchProvider {
   return new ParallelSearchProvider(config);
 }

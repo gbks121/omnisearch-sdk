@@ -1,11 +1,7 @@
-import { SearchOptions, SearchResult, ProviderConfig } from '../types';
+import { SearchQuery, SearchResult, ProviderConfig } from '../types';
 import { post, extractDomain, clampMaxResults } from '../utils';
-import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
 
-/**
- * Tavily Search API response types
- */
 interface TavilySearchResult {
   title: string;
   url: string;
@@ -26,23 +22,13 @@ interface TavilySearchResponse {
   answer?: string;
 }
 
-/**
- * Tavily configuration options
- */
 export interface TavilyConfig extends ProviderConfig {
-  /** Base URL for Tavily API */
   baseUrl?: string;
-  /** Whether to include answers in response */
   includeAnswer?: boolean;
-  /** Sort results by relevance or date */
   sortBy?: 'relevance' | 'date';
-  /** Search depth (basic or comprehensive) */
   searchDepth?: 'basic' | 'comprehensive';
 }
 
-/**
- * Tavily request body interface
- */
 interface TavilyRequestBody {
   api_key: string;
   query: string;
@@ -55,9 +41,6 @@ interface TavilyRequestBody {
   page?: number;
 }
 
-/**
- * Default base URL for Tavily API
- */
 const DEFAULT_BASE_URL = 'https://api.tavily.com/search';
 
 export class TavilySearchProvider extends AbstractSearchProvider<TavilyConfig> {
@@ -86,17 +69,8 @@ export class TavilySearchProvider extends AbstractSearchProvider<TavilyConfig> {
     return '';
   }
 
-  protected async doSearch(options: SearchOptions): Promise<SearchResult[]> {
-    const {
-      query,
-      maxResults = 10,
-      page = 1,
-      language,
-      region,
-      safeSearch,
-      timeout,
-      debug: debugOptions,
-    } = options;
+  protected async doSearch(options: SearchQuery): Promise<SearchResult[]> {
+    const { query, maxResults = 10, page = 1, language, region, safeSearch, timeout } = options;
 
     if (!query || !query.trim()) {
       throw new Error('Tavily search requires a query.');
@@ -127,26 +101,11 @@ export class TavilySearchProvider extends AbstractSearchProvider<TavilyConfig> {
 
     const baseUrl = this.config.baseUrl || DEFAULT_BASE_URL;
 
-    debug.logRequest(debugOptions, 'Tavily Search request', {
-      url: baseUrl,
-      body: { ...requestBody, api_key: '***' },
-    });
-
-    const result = await post<TavilySearchResponse>(baseUrl, requestBody, {
+    const response = await post<TavilySearchResponse>(baseUrl, requestBody, {
       headers: {
         'Content-Type': 'application/json',
       },
       timeout,
-    });
-    if (result.isErr()) throw result.error;
-    const response = result.value;
-
-    debug.logResponse(debugOptions, 'Tavily Search raw response', {
-      status: 'success',
-      itemCount: response.results?.length || 0,
-      searchId: response.search_id,
-      query: response.query,
-      searchDepth: response.search_depth,
     });
 
     if (!response.results || response.results.length === 0) {
@@ -167,9 +126,6 @@ export class TavilySearchProvider extends AbstractSearchProvider<TavilyConfig> {
   }
 }
 
-/**
- * Creates a Tavily search provider instance
- */
 export function createTavilyProvider(config: TavilyConfig): TavilySearchProvider {
   return new TavilySearchProvider(config);
 }

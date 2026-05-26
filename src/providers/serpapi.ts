@@ -1,11 +1,7 @@
-import { SearchOptions, SearchResult, ProviderConfig } from '../types';
+import { SearchQuery, SearchResult, ProviderConfig } from '../types';
 import { buildUrl, get, clampMaxResults } from '../utils';
-import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
 
-/**
- * SerpAPI response types for Google search engine
- */
 interface SerpApiSearchResult {
   position: number;
   title: string;
@@ -51,19 +47,11 @@ interface SerpApiResponse {
   error?: string;
 }
 
-/**
- * SerpAPI configuration options
- */
 export interface SerpApiConfig extends ProviderConfig {
-  /** Search engine to use (e.g., google, bing, yahoo) */
   engine?: string;
-  /** Base URL for SerpAPI */
   baseUrl?: string;
 }
 
-/**
- * Default base URL for SerpAPI
- */
 const DEFAULT_BASE_URL = 'https://serpapi.com/search.json';
 
 export class SerpApiSearchProvider extends AbstractSearchProvider<SerpApiConfig> {
@@ -98,17 +86,8 @@ export class SerpApiSearchProvider extends AbstractSearchProvider<SerpApiConfig>
     return '';
   }
 
-  protected async doSearch(options: SearchOptions): Promise<SearchResult[]> {
-    const {
-      query,
-      maxResults = 10,
-      page = 1,
-      language,
-      region,
-      safeSearch,
-      timeout,
-      debug: debugOptions,
-    } = options;
+  protected async doSearch(options: SearchQuery): Promise<SearchResult[]> {
+    const { query, maxResults = 10, page = 1, language, region, safeSearch, timeout } = options;
 
     if (!query || !query.trim()) {
       throw new Error('SerpAPI search requires a query.');
@@ -131,20 +110,7 @@ export class SerpApiSearchProvider extends AbstractSearchProvider<SerpApiConfig>
     const baseUrl = this.config.baseUrl || DEFAULT_BASE_URL;
     const url = buildUrl(baseUrl, params);
 
-    debug.logRequest(debugOptions, 'SerpAPI request', {
-      url: this.config.apiKey ? url.replace(this.config.apiKey, '***') : url,
-      params: { ...params, api_key: '***' },
-    });
-
-    const result = await get<SerpApiResponse>(url, { timeout });
-    if (result.isErr()) throw result.error;
-    const response = result.value;
-
-    debug.logResponse(debugOptions, 'SerpAPI raw response', {
-      status: response.error ? 'error' : 'success',
-      itemCount: response.organic_results?.length || 0,
-      totalResults: response.search_information?.total_results || 0,
-    });
+    const response = await get<SerpApiResponse>(url, { timeout });
 
     if (response.error) {
       throw new Error(`SerpAPI error: ${response.error}`);
@@ -172,9 +138,6 @@ export class SerpApiSearchProvider extends AbstractSearchProvider<SerpApiConfig>
   }
 }
 
-/**
- * Creates a SerpAPI search provider instance
- */
 export function createSerpApiProvider(config: SerpApiConfig): SerpApiSearchProvider {
   return new SerpApiSearchProvider(config);
 }

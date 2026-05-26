@@ -1,11 +1,7 @@
-import { SearchOptions, SearchResult, ProviderConfig, DebugOptions } from '../types';
+import { SearchQuery, SearchResult, ProviderConfig } from '../types';
 import { get, post } from '../utils';
-import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
 
-/**
- * DuckDuckGo image search result
- */
 interface DuckDuckGoImageResult {
   title: string;
   image: string;
@@ -21,9 +17,6 @@ interface DuckDuckGoImagesResponse {
   next?: string;
 }
 
-/**
- * DuckDuckGo news search result
- */
 interface DuckDuckGoNewsResult {
   date: string;
   title: string;
@@ -38,21 +31,11 @@ interface DuckDuckGoNewsResponse {
   next?: string;
 }
 
-/**
- * DuckDuckGo configuration options
- */
 export interface DuckDuckGoConfig extends ProviderConfig {
   baseUrl?: string;
   searchType?: 'text' | 'images' | 'news';
   useLite?: boolean;
   userAgent?: string;
-}
-
-/**
- * DuckDuckGo specific search options
- */
-export interface DuckDuckGoSearchOptions extends SearchOptions {
-  searchType?: 'text' | 'images' | 'news';
 }
 
 const DEFAULT_BASE_URLS = {
@@ -64,7 +47,7 @@ const DEFAULT_BASE_URLS = {
 
 function normalizeText(text: string): string {
   return text
-    .replace(/<[^>]*>?/gm, '') // Remove HTML tags
+    .replace(/<[^>]*>?/gm, '')
     .replace(/&quot;/g, '"')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
@@ -88,10 +71,7 @@ function extractVqd(html: string): string | null {
   return match ? match[1] : null;
 }
 
-export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
-  DuckDuckGoConfig,
-  DuckDuckGoSearchOptions
-> {
+export class DuckDuckGoSearchProvider extends AbstractSearchProvider<DuckDuckGoConfig> {
   public readonly name = 'duckduckgo';
   protected override get displayName(): string {
     return 'DuckDuckGo';
@@ -107,28 +87,24 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
     return '';
   }
 
-  protected async doSearch(options: DuckDuckGoSearchOptions): Promise<SearchResult[]> {
-    const {
-      query,
-      maxResults = 10,
-      region = 'wt-wt',
-      safeSearch = 'moderate',
-      debug: debugOptions,
-      timeout,
-    } = options;
+  protected async doSearch(options: SearchQuery): Promise<SearchResult[]> {
+    const { query, maxResults = 10, region = 'wt-wt', safeSearch = 'moderate', timeout } = options;
 
-    const effectiveSearchType = options.searchType || this.config.searchType || 'text';
+    const effectiveSearchType =
+      (options.searchType as 'text' | 'images' | 'news') ||
+      (this.config.searchType as 'text' | 'images' | 'news') ||
+      'text';
 
     if (!query || !query.trim()) {
       throw new Error('DuckDuckGo search requires a query.');
     }
 
     if (effectiveSearchType === 'images') {
-      return await this.searchImages(query, region, safeSearch, maxResults, debugOptions, timeout);
+      return await this.searchImages(query, region, safeSearch, maxResults, timeout);
     } else if (effectiveSearchType === 'news') {
-      return await this.searchNews(query, region, safeSearch, maxResults, debugOptions, timeout);
+      return await this.searchNews(query, region, safeSearch, maxResults, timeout);
     } else {
-      return await this.searchText(query, region, safeSearch, maxResults, debugOptions, timeout);
+      return await this.searchText(query, region, safeSearch, maxResults, timeout);
     }
   }
 
@@ -148,7 +124,6 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
     region: string,
     _safeSearch: string,
     maxResults: number,
-    debugOptions?: DebugOptions,
     timeout?: number
   ): Promise<SearchResult[]> {
     const useLite = this.config.useLite || false;
@@ -156,20 +131,14 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
       this.config.baseUrl || (useLite ? DEFAULT_BASE_URLS.lite : DEFAULT_BASE_URLS.text);
     const payload = new URLSearchParams({ q: query, b: '', kl: region }).toString();
 
-    debug.logRequest(debugOptions, 'DuckDuckGo Text Search request', {
-      url: baseUrl,
-      payload,
-    });
-
-    const result = await post<string>(baseUrl, payload, {
+    const response = await post<string>(baseUrl, payload, {
       headers: {
         ...this.getHeaders(),
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       timeout,
     });
-    if (result.isErr()) throw result.error;
-    const response = result.value;
+
     const results: SearchResult[] = [];
     const cache = new Set<string>();
 
@@ -207,11 +176,6 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
       }
     }
 
-    debug.logResponse(debugOptions, 'DuckDuckGo Text Search response', {
-      status: 'success',
-      itemCount: results.length,
-    });
-
     return results;
   }
 
@@ -220,25 +184,14 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
     region: string,
     safeSearch: string,
     maxResults: number,
-    debugOptions?: DebugOptions,
     timeout?: number
   ): Promise<SearchResult[]> {
     const baseUrl = this.config.baseUrl || DEFAULT_BASE_URLS.images;
 
-    debug.logRequest(debugOptions, 'DuckDuckGo Images Search request', {
-      url: baseUrl,
-      query,
-      region,
-      safeSearch,
-      maxResults,
-    });
-
-    const initialResult = await get<string>('https://duckduckgo.com', {
+    const initialResponse = await get<string>('https://duckduckgo.com', {
       headers: { ...this.getHeaders(), Referer: 'https://duckduckgo.com/' },
       timeout,
     });
-    if (initialResult.isErr()) throw initialResult.error;
-    const initialResponse = initialResult.value;
 
     const vqd = extractVqd(initialResponse);
     if (!vqd) throw new Error('Failed to extract vqd parameter for DuckDuckGo Images Search');
@@ -251,12 +204,10 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
     searchUrl.searchParams.append('vqd', vqd);
     searchUrl.searchParams.append('p', safesearchMapping[safeSearch.toLowerCase()] || '1');
 
-    const result = await get<DuckDuckGoImagesResponse>(searchUrl.toString(), {
+    const response = await get<DuckDuckGoImagesResponse>(searchUrl.toString(), {
       headers: { ...this.getHeaders(), Referer: 'https://duckduckgo.com/' },
       timeout,
     });
-    if (result.isErr()) throw result.error;
-    const response = result.value;
 
     const results: SearchResult[] = [];
     if (response.results) {
@@ -273,11 +224,6 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
       }
     }
 
-    debug.logResponse(debugOptions, 'DuckDuckGo Images Search response', {
-      status: 'success',
-      itemCount: results.length,
-    });
-
     return results;
   }
 
@@ -286,25 +232,14 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
     region: string,
     safeSearch: string,
     maxResults: number,
-    debugOptions?: DebugOptions,
     timeout?: number
   ): Promise<SearchResult[]> {
     const baseUrl = this.config.baseUrl || DEFAULT_BASE_URLS.news;
 
-    debug.logRequest(debugOptions, 'DuckDuckGo News Search request', {
-      url: baseUrl,
-      query,
-      region,
-      safeSearch,
-      maxResults,
-    });
-
-    const initialResult = await get<string>('https://duckduckgo.com', {
+    const initialResponse = await get<string>('https://duckduckgo.com', {
       headers: { ...this.getHeaders(), Referer: 'https://duckduckgo.com/' },
       timeout,
     });
-    if (initialResult.isErr()) throw initialResult.error;
-    const initialResponse = initialResult.value;
 
     const vqd = extractVqd(initialResponse);
     if (!vqd) throw new Error('Failed to extract vqd parameter for DuckDuckGo News Search');
@@ -318,12 +253,10 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
     searchUrl.searchParams.append('vqd', vqd);
     searchUrl.searchParams.append('p', safesearchMapping[safeSearch.toLowerCase()] || '-1');
 
-    const result = await get<DuckDuckGoNewsResponse>(searchUrl.toString(), {
+    const response = await get<DuckDuckGoNewsResponse>(searchUrl.toString(), {
       headers: this.getHeaders(),
       timeout,
     });
-    if (result.isErr()) throw result.error;
-    const response = result.value;
 
     const results: SearchResult[] = [];
     if (response.results) {
@@ -341,18 +274,10 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
       }
     }
 
-    debug.logResponse(debugOptions, 'DuckDuckGo News Search response', {
-      status: 'success',
-      itemCount: results.length,
-    });
-
     return results;
   }
 }
 
-/**
- * Creates a DuckDuckGo search provider instance
- */
 export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): DuckDuckGoSearchProvider {
   return new DuckDuckGoSearchProvider(config);
 }

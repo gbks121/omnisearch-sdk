@@ -1,11 +1,7 @@
-import { SearchOptions, SearchResult, ProviderConfig } from '../types';
+import { SearchQuery, SearchResult, ProviderConfig } from '../types';
 import { post, extractDomain } from '../utils';
-import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
 
-/**
- * Perplexity Search API response types
- */
 interface PerplexitySearchResult {
   title: string;
   url: string;
@@ -18,33 +14,18 @@ interface PerplexitySearchResponse {
   results: PerplexitySearchResult[];
 }
 
-/**
- * Perplexity API configuration options
- */
 export interface PerplexityConfig extends ProviderConfig {
-  /** Base URL for Perplexity API */
   baseUrl?: string;
-  /** Maximum number of tokens to return across all search results (default: 25000) */
   maxTokens?: number;
-  /** Maximum number of tokens retrieved from each webpage (default: 2048) */
   maxTokensPerPage?: number;
-  /** Country code to filter search results by geographic location (ISO 3166-1 alpha-2) */
   country?: string;
-  /** Search domain filter - list of domains/URLs to limit or exclude results (max 20) */
   searchDomainFilter?: string[];
-  /** Search recency filter (day, week, month, year) */
   searchRecencyFilter?: 'day' | 'week' | 'month' | 'year';
-  /** Filter results after a specific date (format: MM/DD/YYYY) */
   searchAfterDate?: string;
-  /** Filter results before a specific date (format: MM/DD/YYYY) */
   searchBeforeDate?: string;
-  /** Filter search results by language(s) (ISO 639-1) */
   searchLanguageFilter?: string[];
 }
 
-/**
- * Perplexity request body interface
- */
 interface PerplexityRequestBody {
   query: string;
   max_results?: number;
@@ -58,9 +39,6 @@ interface PerplexityRequestBody {
   search_language_filter?: string[];
 }
 
-/**
- * Default base URL for Perplexity API
- */
 const DEFAULT_BASE_URL = 'https://api.perplexity.ai/search';
 
 export class PerplexitySearchProvider extends AbstractSearchProvider<PerplexityConfig> {
@@ -92,8 +70,8 @@ export class PerplexitySearchProvider extends AbstractSearchProvider<PerplexityC
     return '';
   }
 
-  protected async doSearch(options: SearchOptions): Promise<SearchResult[]> {
-    const { query, maxResults = 10, region, language, timeout, debug: debugOptions } = options;
+  protected async doSearch(options: SearchQuery): Promise<SearchResult[]> {
+    const { query, maxResults = 10, region, language, timeout } = options;
 
     if (!query || !query.trim()) {
       throw new Error('Perplexity search requires a query.');
@@ -146,25 +124,12 @@ export class PerplexitySearchProvider extends AbstractSearchProvider<PerplexityC
 
     const baseUrl = this.config.baseUrl || DEFAULT_BASE_URL;
 
-    debug.logRequest(debugOptions, 'Perplexity Search request', {
-      url: baseUrl,
-      body: { ...requestBody, apiKey: '***' },
-    });
-
-    const result = await post<PerplexitySearchResponse>(baseUrl, requestBody, {
+    const response = await post<PerplexitySearchResponse>(baseUrl, requestBody, {
       headers: {
         Authorization: `Bearer ${this.config.apiKey}`,
         'Content-Type': 'application/json',
       },
       timeout,
-    });
-    if (result.isErr()) throw result.error;
-    const response = result.value;
-
-    debug.logResponse(debugOptions, 'Perplexity Search raw response', {
-      status: 'success',
-      itemCount: response.results?.length || 0,
-      query: query,
     });
 
     if (!response.results || response.results.length === 0) {
@@ -187,9 +152,6 @@ export class PerplexitySearchProvider extends AbstractSearchProvider<PerplexityC
   }
 }
 
-/**
- * Creates a Perplexity search provider instance
- */
 export function createPerplexityProvider(config: PerplexityConfig): PerplexitySearchProvider {
   return new PerplexitySearchProvider(config);
 }

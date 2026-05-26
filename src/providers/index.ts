@@ -4,7 +4,7 @@ export { createBraveProvider, BraveSearchConfig, BraveSearchProvider } from './b
 export { createExaProvider, ExaConfig, ExaSearchProvider } from './exa';
 export { createTavilyProvider, TavilyConfig, TavilySearchProvider } from './tavily';
 export { createSearXNGProvider, SearXNGConfig, SearXNGSearchProvider } from './searxng';
-export { createArxivProvider, ArxivConfig, ArxivSearchProvider, ArxivSearchOptions } from './arxiv';
+export { createArxivProvider, ArxivConfig, ArxivSearchProvider } from './arxiv';
 export { createDuckDuckGoProvider, DuckDuckGoConfig, DuckDuckGoSearchProvider } from './duckduckgo';
 export { createPerplexityProvider, PerplexityConfig, PerplexitySearchProvider } from './perplexity';
 export { createParallelProvider, ParallelConfig, ParallelSearchProvider } from './parallel';

@@ -1,11 +1,7 @@
-import { SearchOptions, SearchResult, ProviderConfig } from '../types';
+import { SearchQuery, SearchResult, ProviderConfig } from '../types';
 import { buildUrl, get } from '../utils';
-import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
 
-/**
- * Google Custom Search API response types
- */
 interface GoogleSearchItem {
   kind: string;
   title: string;
@@ -70,27 +66,15 @@ interface GoogleSearchResponse {
   items?: GoogleSearchItem[];
 }
 
-/**
- * Google Custom Search configuration options
- */
 export interface GoogleSearchConfig extends ProviderConfig {
-  /** Google Custom Search Engine ID */
   cx: string;
-  /** API key or token */
   apiKey: string;
-  /** Base URL for Google Custom Search API */
   baseUrl?: string;
-  /** Custom timeout in milliseconds (default: 30000) */
   timeout?: number;
-  /** Throttle: number of requests allowed within a specific interval */
   throttleLimit?: number;
-  /** Throttle: interval in milliseconds for the limit (default: 1000) */
   throttleInterval?: number;
 }
 
-/**
- * Default base URL for Google Custom Search API
- */
 const DEFAULT_BASE_URL = 'https://www.googleapis.com/customsearch/v1';
 
 export class GoogleSearchProvider extends AbstractSearchProvider<GoogleSearchConfig> {
@@ -140,17 +124,8 @@ export class GoogleSearchProvider extends AbstractSearchProvider<GoogleSearchCon
     return '';
   }
 
-  protected async doSearch(options: SearchOptions): Promise<SearchResult[]> {
-    const {
-      query,
-      maxResults = 10,
-      page = 1,
-      language,
-      region,
-      safeSearch,
-      timeout,
-      debug: debugOptions,
-    } = options;
+  protected async doSearch(options: SearchQuery): Promise<SearchResult[]> {
+    const { query, maxResults = 10, page = 1, language, region, safeSearch, timeout } = options;
 
     if (!query || !query.trim()) {
       throw new Error('Google search requires a query.');
@@ -174,20 +149,7 @@ export class GoogleSearchProvider extends AbstractSearchProvider<GoogleSearchCon
     const baseUrl = this.config.baseUrl || DEFAULT_BASE_URL;
     const url = buildUrl(baseUrl, params);
 
-    debug.logRequest(debugOptions, 'Google Search request', {
-      url: this.config.apiKey ? url.replace(this.config.apiKey, '***') : url,
-      params: { ...params, key: '***' },
-    });
-
-    const result = await get<GoogleSearchResponse>(url, { timeout });
-    if (result.isErr()) throw result.error;
-    const response = result.value;
-
-    debug.logResponse(debugOptions, 'Google Search raw response', {
-      status: 'success',
-      itemCount: response.items?.length || 0,
-      totalResults: response.searchInformation?.totalResults || 0,
-    });
+    const response = await get<GoogleSearchResponse>(url, { timeout });
 
     if (!response.items || response.items.length === 0) {
       return [];
@@ -216,9 +178,6 @@ export class GoogleSearchProvider extends AbstractSearchProvider<GoogleSearchCon
   }
 }
 
-/**
- * Creates a Google Custom Search API provider instance
- */
 export function createGoogleProvider(config: GoogleSearchConfig): GoogleSearchProvider {
   return new GoogleSearchProvider(config);
 }

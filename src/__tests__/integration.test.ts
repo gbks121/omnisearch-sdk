@@ -41,103 +41,78 @@ describe('integration: real provider calls', () => {
       apiKey: env('GOOGLE_API_KEY')!,
       cx: env('GOOGLE_CX')!,
     });
-    const result = await provider.search({ query: QUERY, maxResults: 3 });
-    if (result.isErr()) {
-      console.log('[Google] error:', result.error.message);
-    }
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value.length).toBeGreaterThan(0);
-      printResults('Google', result.value);
+    try {
+      const results = await provider.search({ query: QUERY, maxResults: 3 });
+      expect(results.length).toBeGreaterThan(0);
+      printResults('Google', results);
+    } catch (error) {
+      console.log('[Google] error:', (error as Error).message);
+      throw error;
     }
   });
 
   skipIfNo('BRAVE_API_KEY')('Brave', async () => {
     const provider = createBraveProvider({ apiKey: env('BRAVE_API_KEY')! });
-    const result = await provider.search({ query: QUERY, maxResults: 3 });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value.length).toBeGreaterThan(0);
-      printResults('Brave', result.value);
-    }
+    const results = await provider.search({ query: QUERY, maxResults: 3 });
+    expect(results.length).toBeGreaterThan(0);
+    printResults('Brave', results);
   });
 
   skipIfNo('EXA_API_KEY')('Exa', async () => {
     const provider = createExaProvider({ apiKey: env('EXA_API_KEY')! });
-    const result = await provider.search({ query: QUERY, maxResults: 3 });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value.length).toBeGreaterThan(0);
-      printResults('Exa', result.value);
-    }
+    const results = await provider.search({ query: QUERY, maxResults: 3 });
+    expect(results.length).toBeGreaterThan(0);
+    printResults('Exa', results);
   });
 
   skipIfNo('TAVILY_API_KEY')('Tavily', async () => {
     const provider = createTavilyProvider({ apiKey: env('TAVILY_API_KEY')! });
-    const result = await provider.search({ query: QUERY, maxResults: 3 });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value.length).toBeGreaterThan(0);
-      printResults('Tavily', result.value);
-    }
+    const results = await provider.search({ query: QUERY, maxResults: 3 });
+    expect(results.length).toBeGreaterThan(0);
+    printResults('Tavily', results);
   });
 
   skipIfNo('SERPAPI_KEY')('SerpAPI', async () => {
     const provider = createSerpApiProvider({ apiKey: env('SERPAPI_KEY')! });
-    const result = await provider.search({ query: QUERY, maxResults: 3 });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value.length).toBeGreaterThan(0);
-      printResults('SerpAPI', result.value);
-    }
+    const results = await provider.search({ query: QUERY, maxResults: 3 });
+    expect(results.length).toBeGreaterThan(0);
+    printResults('SerpAPI', results);
   });
 
   skipIfNo('PERPLEXITY_API_KEY')('Perplexity', async () => {
     const provider = createPerplexityProvider({ apiKey: env('PERPLEXITY_API_KEY')! });
-    const result = await provider.search({ query: QUERY, maxResults: 3 });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value.length).toBeGreaterThan(0);
-      printResults('Perplexity', result.value);
-    }
+    const results = await provider.search({ query: QUERY, maxResults: 3 });
+    expect(results.length).toBeGreaterThan(0);
+    printResults('Perplexity', results);
   });
 
   skipIfNo('SEARXNG_URL')('SearXNG', async () => {
     const provider = createSearXNGProvider({ baseUrl: env('SEARXNG_URL')! });
-    const result = await provider.search({ query: QUERY, maxResults: 3 });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value.length).toBeGreaterThan(0);
-      printResults('SearXNG', result.value);
-    }
+    const results = await provider.search({ query: QUERY, maxResults: 3 });
+    expect(results.length).toBeGreaterThan(0);
+    printResults('SearXNG', results);
   });
 
   it('Arxiv', async () => {
     const provider = createArxivProvider({ timeout: 20000 });
-    const result = await provider.search({ query: 'machine learning', maxResults: 3 });
-    if (result.isErr()) {
-      console.log('[Arxiv] skipped — API unavailable:', result.error.message);
-      return;
+    try {
+      const results = await provider.search({ query: 'machine learning', maxResults: 3 });
+      printResults('Arxiv', results);
+    } catch (error) {
+      console.log('[Arxiv] skipped — API unavailable:', (error as Error).message);
     }
-    printResults('Arxiv', result.value);
   }, 25_000);
 
   it('DuckDuckGo', async () => {
     const provider = createDuckDuckGoProvider();
-    const result = await provider.search({ query: QUERY, maxResults: 3 });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      printResults('DuckDuckGo', result.value);
-    }
+    const results = await provider.search({ query: QUERY, maxResults: 3 });
+    printResults('DuckDuckGo', results);
   });
 
   skipIfNo('PARALLEL_API_KEY')('Parallel', async () => {
     const provider = createParallelProvider({ apiKey: env('PARALLEL_API_KEY')! });
-    const result = await provider.search({ query: QUERY, maxResults: 3 });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value.length).toBeGreaterThan(0);
-      console.log('[Parallel]', result.value[0]?.title);
-    }
+    const results = await provider.search({ query: QUERY, maxResults: 3 });
+    expect(results.length).toBeGreaterThan(0);
+    console.log('[Parallel]', results[0]?.title);
   });
 });

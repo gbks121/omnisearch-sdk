@@ -66,20 +66,23 @@ describe('createSerpApiProvider', () => {
     expect(provider.name).toBe('serpapi');
   });
 
-  it('returns error if query is empty or whitespace', async () => {
+  it('throws if query is empty or whitespace', async () => {
     const provider = createSerpApiProvider({ apiKey: 'test-key' });
-    const result1 = await provider.search({ query: '', retries: 0 });
-    expect(result1.isErr()).toBe(true);
-    if (result1.isErr()) {
-      const msg = result1.error.message;
+
+    try {
+      await provider.search({ query: '', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('requires a query');
     }
 
-    const result2 = await provider.search({ query: '  ', retries: 0 });
-    expect(result2.isErr()).toBe(true);
-    if (result2.isErr()) {
-      const msg = result2.error.message;
+    try {
+      await provider.search({ query: '  ', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('requires a query');
     }
@@ -88,38 +91,32 @@ describe('createSerpApiProvider', () => {
   it('returns search results correctly', async () => {
     mockFetch(200, sampleSerpApiResponse);
     const provider = createSerpApiProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
+    const results = await provider.search({ query: 'test', retries: 0 });
 
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      const results = result.value;
-      expect(results).toHaveLength(1);
-      expect(results[0].url).toBe('https://example.com/result');
-      expect(results[0].title).toBe('SerpAPI Result');
-      expect(results[0].snippet).toBe('SerpAPI snippet content');
-      expect(results[0].domain).toBe('example.com');
-      expect(results[0].publishedDate).toBe('2024-02-01');
-      expect(results[0].provider).toBe('serpapi');
-    }
+    expect(results).toHaveLength(1);
+    expect(results[0].url).toBe('https://example.com/result');
+    expect(results[0].title).toBe('SerpAPI Result');
+    expect(results[0].snippet).toBe('SerpAPI snippet content');
+    expect(results[0].domain).toBe('example.com');
+    expect(results[0].publishedDate).toBe('2024-02-01');
+    expect(results[0].provider).toBe('serpapi');
   });
 
   it('returns empty array when no organic_results', async () => {
     mockFetch(200, { ...sampleSerpApiResponse, organic_results: [] });
     const provider = createSerpApiProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value).toEqual([]);
-    }
+    const results = await provider.search({ query: 'test', retries: 0 });
+    expect(results).toEqual([]);
   });
 
-  it('returns error when response contains error field', async () => {
+  it('throws when response contains error field', async () => {
     mockFetch(200, { ...sampleSerpApiResponse, organic_results: [], error: 'Invalid API key' });
     const provider = createSerpApiProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('invalid');
     }
@@ -128,8 +125,7 @@ describe('createSerpApiProvider', () => {
   it('applies language parameter', async () => {
     mockFetch(200, sampleSerpApiResponse);
     const provider = createSerpApiProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', language: 'fr', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', language: 'fr', retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('hl=fr');
   });
@@ -137,8 +133,7 @@ describe('createSerpApiProvider', () => {
   it('applies region parameter', async () => {
     mockFetch(200, sampleSerpApiResponse);
     const provider = createSerpApiProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', region: 'us', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', region: 'us', retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('gl=us');
   });
@@ -146,8 +141,7 @@ describe('createSerpApiProvider', () => {
   it('applies safeSearch parameter', async () => {
     mockFetch(200, sampleSerpApiResponse);
     const provider = createSerpApiProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', safeSearch: 'strict', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', safeSearch: 'strict', retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('safe=strict');
   });
@@ -155,8 +149,7 @@ describe('createSerpApiProvider', () => {
   it('adds start for page > 1', async () => {
     mockFetch(200, sampleSerpApiResponse);
     const provider = createSerpApiProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', page: 2, maxResults: 10, retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', page: 2, maxResults: 10, retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('start=11');
   });
@@ -164,10 +157,8 @@ describe('createSerpApiProvider', () => {
   it('does not add start for page 1', async () => {
     mockFetch(200, sampleSerpApiResponse);
     const provider = createSerpApiProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', page: 1, retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', page: 1, retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    // start=undefined should not be appended
     const parsedUrl = new URL(url);
     expect(parsedUrl.searchParams.has('start')).toBe(false);
   });
@@ -175,8 +166,7 @@ describe('createSerpApiProvider', () => {
   it('uses custom engine when provided', async () => {
     mockFetch(200, sampleSerpApiResponse);
     const provider = createSerpApiProvider({ apiKey: 'test-key', engine: 'bing' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('engine=bing');
   });
@@ -187,71 +177,75 @@ describe('createSerpApiProvider', () => {
       apiKey: 'test-key',
       baseUrl: 'https://custom-serpapi.example.com/search',
     });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('custom-serpapi.example.com');
   });
 
-  it('returns detailed error on 401/403', async () => {
+  it('throws detailed error on 401/403', async () => {
     mockFetch(401, { message: 'Unauthorized' }, 'Unauthorized');
     const provider = createSerpApiProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('401');
       expect(msg.toLowerCase()).toContain('serpapi');
     }
   });
 
-  it('returns detailed error on 429', async () => {
+  it('throws detailed error on 429', async () => {
     mockFetch(429, { message: 'Rate Limited' }, 'Too Many Requests');
     const provider = createSerpApiProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('429');
       expect(msg.toLowerCase()).toContain('rate limit');
     }
   });
 
-  it('returns detailed error on 400', async () => {
+  it('throws detailed error on 400', async () => {
     mockFetch(400, { message: 'Bad Request' }, 'Bad Request');
     const provider = createSerpApiProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('400');
       expect(msg.toLowerCase()).toContain('bad request');
     }
   });
 
-  it('returns detailed error on 400 with missing parameter message', async () => {
+  it('throws detailed error on 400 with missing parameter message', async () => {
     mockFetch(400, { message: 'parameter is missing' }, 'Bad Request');
     const provider = createSerpApiProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('400');
       expect(msg.toLowerCase()).toContain('parameter');
     }
   });
 
-  it('returns detailed error on 500+', async () => {
+  it('throws detailed error on 500+', async () => {
     mockFetch(503, { message: 'Service Unavailable' }, 'Service Unavailable');
     const provider = createSerpApiProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('503');
       expect(msg.toLowerCase()).toContain('server error');
@@ -261,10 +255,11 @@ describe('createSerpApiProvider', () => {
   it('handles generic Error with API key mention', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('API key is invalid')));
     const provider = createSerpApiProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('serpapi');
     }
@@ -273,10 +268,11 @@ describe('createSerpApiProvider', () => {
   it('handles generic Error with quota/limit mention', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('quota exceeded')));
     const provider = createSerpApiProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('quota');
     }
@@ -285,10 +281,11 @@ describe('createSerpApiProvider', () => {
   it('wraps non-Error throws', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue('string error'));
     const provider = createSerpApiProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('string error');
     }

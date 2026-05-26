@@ -1,35 +1,31 @@
-import { ResultAsync, ok, type Result } from 'neverthrow';
 import pRetry, { AbortError } from 'p-retry';
 import pTimeout from 'p-timeout';
 import pThrottle from 'p-throttle';
 import {
-  SearchOptions,
+  SearchQuery,
   SearchResult,
   SearchProvider,
   ProviderConfig,
   SearchResultSchema,
+  SearchProviderError,
+  RateLimitError,
+  TimeoutError,
+  SearchValidationError,
+  ProviderApiError,
+  NetworkError,
 } from '../types';
 import { HttpError } from '../utils/http';
-import { debug } from '../utils/debug';
 
 interface ExtendedAbortError extends AbortError {
   originalError: Error;
 }
 
-/**
- * Abstract base class for search providers that handles common concerns:
- * - Throttling
- * - Retries
- * - Timeouts
- * - Error standardization and troubleshooting
- */
 export abstract class AbstractSearchProvider<
   TConfig extends ProviderConfig = ProviderConfig,
-  TOptions extends SearchOptions = SearchOptions,
-> implements SearchProvider<TConfig, TOptions> {
+> implements SearchProvider<TConfig> {
   public abstract readonly name: string;
   public readonly config: TConfig;
-  private throttledSearch?: (options: TOptions) => Promise<SearchResult[]>;
+  private throttledSearch?: (options: SearchQuery) => Promise<SearchResult[]>;
 
   protected get displayName(): string {
     return this.name.charAt(0).toUpperCase() + this.name.slice(1);
@@ -39,28 +35,24 @@ export abstract class AbstractSearchProvider<
     this.config = config;
   }
 
-  /**
-   * Internal search implementation to be provided by subclasses
-   */
-  protected abstract doSearch(options: TOptions): Promise<SearchResult[]>;
+  protected abstract doSearch(options: SearchQuery): Promise<SearchResult[]>;
 
-  /**
-   * Optional hook for provider-specific troubleshooting messages
-   */
   protected getTroubleshooting(_error: Error, _statusCode?: number): string {
     return '';
   }
 
-  /**
-   * Standardized search method that wraps the internal implementation with resilience logic
-   */
-  public search(options: TOptions): ResultAsync<SearchResult[], Error> {
+  public async search(options: SearchQuery): Promise<SearchResult[]> {
     const retries = options.retries ?? 2;
     const timeout = options.timeout ?? this.config.timeout ?? 30000;
+    const hooks = options.hooks;
+    const query = options.query || '';
     const searchFn = this.getThrottledSearch();
 
-    const runWithResilience = () =>
-      pRetry(
+    hooks?.onRequest?.(this.name, query);
+    const startTime = Date.now();
+
+    try {
+      const results = await pRetry(
         async () => {
           try {
             return await pTimeout(searchFn(options), {
@@ -70,14 +62,12 @@ export abstract class AbstractSearchProvider<
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
 
-            // Handle p-timeout's TimeoutError
             if (error instanceof Error && error.name === 'TimeoutError') {
               const abortErr = new AbortError(errorMessage) as ExtendedAbortError;
               abortErr.originalError = error instanceof Error ? error : new Error(String(error));
               throw abortErr;
             }
 
-            // Only retry on transient errors
             if (
               error instanceof HttpError ||
               (error !== null && typeof error === 'object' && 'statusCode' in error)
@@ -86,7 +76,7 @@ export abstract class AbstractSearchProvider<
                 | number
                 | undefined;
               if (statusCode === 429 || (statusCode !== undefined && statusCode >= 500)) {
-                throw error; // Allow retry
+                throw error;
               }
               const abortErr = new AbortError(errorMessage) as ExtendedAbortError;
               abortErr.originalError = error instanceof Error ? error : new Error(String(error));
@@ -100,32 +90,29 @@ export abstract class AbstractSearchProvider<
         },
         {
           retries,
-          onFailedAttempt: (error) => {
-            debug.log(
-              options.debug,
-              `Provider ${this.name} search attempt ${error.attemptNumber} failed. ${error.retriesLeft} retries left.`,
-              { error: error.message }
-            );
-          },
+          onFailedAttempt: () => {},
         }
       );
 
-    const debugOpts = options.debug;
-
-    return ResultAsync.fromPromise(runWithResilience(), (error: unknown) => {
-      return this.standardizeError(error);
-    }).andThen((results) => this.validateResults(results, debugOpts));
+      const validated = this.validateResults(results);
+      hooks?.onResponse?.(this.name, validated.length, Date.now() - startTime);
+      return validated;
+    } catch (error) {
+      const providerError = this.standardizeError(error);
+      hooks?.onError?.(this.name, providerError);
+      throw providerError;
+    }
   }
 
-  private getThrottledSearch(): (options: TOptions) => Promise<SearchResult[]> {
+  private getThrottledSearch(): (options: SearchQuery) => Promise<SearchResult[]> {
     if (this.throttledSearch) return this.throttledSearch;
 
     const internalSearch = this.doSearch.bind(this);
 
     if (this.config.throttleLimit) {
       const throttle = pThrottle({
-        limit: this.config.throttleLimit,
-        interval: this.config.throttleInterval ?? 1000,
+        limit: this.config.throttleLimit as number,
+        interval: (this.config.throttleInterval as number) ?? 1000,
       });
       this.throttledSearch = throttle(internalSearch);
       return this.throttledSearch;
@@ -134,12 +121,9 @@ export abstract class AbstractSearchProvider<
     return internalSearch;
   }
 
-  private validateResults(
-    results: SearchResult[],
-    debugOpts: SearchOptions['debug']
-  ): Result<SearchResult[], Error> {
+  private validateResults(results: SearchResult[]): SearchResult[] {
     if (results.length === 0) {
-      return ok(results);
+      return results;
     }
 
     const validated: SearchResult[] = [];
@@ -155,25 +139,11 @@ export abstract class AbstractSearchProvider<
       }
     }
 
-    if (validated.length < results.length) {
-      debug.log(
-        debugOpts,
-        `Provider ${this.name}: ${results.length - validated.length} of ${results.length} results dropped due to validation failures`,
-        {
-          total: results.length,
-          dropped: results.length - validated.length,
-          kept: validated.length,
-        }
-      );
-    }
-
-    return ok(validated);
+    return validated;
   }
 
-  private standardizeError(error: unknown): Error {
-    let errObj: Error;
-    let errorMessage: string;
-    let statusCode: number | undefined;
+  private standardizeError(error: unknown): SearchProviderError {
+    const provider = this.displayName;
 
     const isAbortError =
       error instanceof AbortError ||
@@ -186,6 +156,19 @@ export abstract class AbstractSearchProvider<
         ? (error as Record<string, unknown>).originalError
         : error;
 
+    const isTimeout =
+      (actualError instanceof Error && actualError.name === 'TimeoutError') ||
+      (isAbortError &&
+        actualError instanceof Error &&
+        actualError.message.toLowerCase().includes('timed out'));
+
+    if (isTimeout) {
+      return new TimeoutError(
+        provider,
+        actualError instanceof Error ? actualError.message : String(actualError)
+      );
+    }
+
     const isHttpError =
       actualError instanceof HttpError ||
       (actualError !== null &&
@@ -194,44 +177,62 @@ export abstract class AbstractSearchProvider<
         'message' in actualError);
 
     if (isHttpError) {
-      const httpErr = actualError as Record<string, unknown>;
-      errorMessage = (httpErr.message as string) || String(actualError);
-      errObj = actualError instanceof Error ? actualError : new Error(errorMessage);
-      statusCode = httpErr.statusCode as number | undefined;
-    } else if (
+      const httpErr = actualError as HttpError;
+      const statusCode = httpErr.statusCode;
+      const errorMessage = httpErr.message || String(actualError);
+
+      if (statusCode === 429) {
+        return new RateLimitError(provider, { statusCode, cause: httpErr });
+      }
+
+      const troubleshooting =
+        this.getTroubleshooting(httpErr, statusCode) || this.getDefaultTroubleshooting(statusCode);
+
+      return new ProviderApiError(provider, `${provider} search failed: ${errorMessage}`, {
+        statusCode,
+        retryable: statusCode !== undefined && statusCode >= 500,
+        troubleshooting,
+        cause: httpErr,
+      });
+    }
+
+    if (
       actualError instanceof Error ||
       (actualError !== null && typeof actualError === 'object' && 'message' in actualError)
     ) {
-      errObj = actualError as Error;
-      errorMessage =
-        ((actualError as Record<string, unknown>).message as string) || String(actualError);
-    } else {
-      errorMessage = typeof actualError === 'string' ? actualError : JSON.stringify(actualError);
-      errObj = new Error(errorMessage);
-    }
+      const errObj = actualError as Error;
+      const errorMessage = errObj.message || String(actualError);
 
-    let troubleshooting = this.getTroubleshooting(errObj, statusCode);
-
-    if (!troubleshooting) {
-      if (statusCode === 401 || statusCode === 403) {
-        troubleshooting =
-          'Authentication failed or Access denied. Your API key or token may be invalid.';
-      } else if (statusCode === 400) {
-        troubleshooting = 'Bad request. Check your search parameters or query for invalid content.';
-      } else if (statusCode === 429) {
-        troubleshooting = 'Rate limit exceeded. Try again later.';
-      } else if (statusCode && statusCode >= 500) {
-        troubleshooting = 'Server error. The search provider is experiencing issues.';
+      if (errorMessage.includes('requires a query') || errorMessage.includes('requires either')) {
+        return new SearchValidationError(provider, `${provider} search failed: ${errorMessage}`);
       }
+
+      const troubleshooting = this.getTroubleshooting(errObj);
+
+      return new ProviderApiError(provider, `${provider} search failed: ${errorMessage}`, {
+        troubleshooting: troubleshooting || undefined,
+        cause: errObj,
+      });
     }
 
-    const displayName = this.displayName;
-    let detailedMessage = `${displayName} search failed: ${errorMessage}`;
+    const errorMessage =
+      typeof actualError === 'string' ? actualError : JSON.stringify(actualError);
+    return new NetworkError(provider, `${provider} search failed: ${errorMessage}`);
+  }
 
-    if (troubleshooting) {
-      detailedMessage += `\n\nTroubleshooting: ${troubleshooting}`;
+  private getDefaultTroubleshooting(statusCode?: number): string {
+    if (statusCode === 401 || statusCode === 403) {
+      return 'Authentication failed or Access denied. Your API key or token may be invalid.';
     }
-
-    return new Error(detailedMessage);
+    if (statusCode === 400) {
+      return 'Bad request. Check your search parameters or query for invalid content.';
+    }
+    if (statusCode === 429) {
+      return 'Rate limit exceeded. Try again later.';
+    }
+    if (statusCode && statusCode >= 500) {
+      return 'Server error. The search provider is experiencing issues.';
+    }
+    return '';
   }
 }

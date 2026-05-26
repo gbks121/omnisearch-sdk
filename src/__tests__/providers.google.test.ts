@@ -107,20 +107,23 @@ describe('createGoogleProvider', () => {
     expect(provider.config.apiKey).toBe('test-key');
   });
 
-  it('returns error if query is empty or whitespace', async () => {
+  it('throws if query is empty or whitespace', async () => {
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result1 = await provider.search({ query: '', retries: 0 });
-    expect(result1.isErr()).toBe(true);
-    if (result1.isErr()) {
-      const msg = result1.error.message;
+
+    try {
+      await provider.search({ query: '', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('requires a query');
     }
 
-    const result2 = await provider.search({ query: '  ', retries: 0 });
-    expect(result2.isErr()).toBe(true);
-    if (result2.isErr()) {
-      const msg = result2.error.message;
+    try {
+      await provider.search({ query: '  ', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('requires a query');
     }
@@ -129,19 +132,15 @@ describe('createGoogleProvider', () => {
   it('returns search results correctly', async () => {
     mockFetch(200, sampleGoogleResponse);
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result = await provider.search({ query: 'test', retries: 0 });
+    const results = await provider.search({ query: 'test', retries: 0 });
 
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      const results = result.value;
-      expect(results).toHaveLength(2);
-      expect(results[0].url).toBe('https://example.com');
-      expect(results[0].title).toBe('Test Page');
-      expect(results[0].snippet).toBe('Test snippet');
-      expect(results[0].domain).toBe('example.com');
-      expect(results[0].publishedDate).toBe('2024-01-01T00:00:00Z');
-      expect(results[0].provider).toBe('google');
-    }
+    expect(results).toHaveLength(2);
+    expect(results[0].url).toBe('https://example.com');
+    expect(results[0].title).toBe('Test Page');
+    expect(results[0].snippet).toBe('Test snippet');
+    expect(results[0].domain).toBe('example.com');
+    expect(results[0].publishedDate).toBe('2024-01-01T00:00:00Z');
+    expect(results[0].provider).toBe('google');
   });
 
   it('extracts publishedDate from "date" metatag', async () => {
@@ -156,11 +155,8 @@ describe('createGoogleProvider', () => {
     };
     mockFetch(200, response);
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value[0].publishedDate).toBe('2024-06-01');
-    }
+    const results = await provider.search({ query: 'test', retries: 0 });
+    expect(results[0].publishedDate).toBe('2024-06-01');
   });
 
   it('extracts publishedDate from "og:updated_time" metatag', async () => {
@@ -175,39 +171,29 @@ describe('createGoogleProvider', () => {
     };
     mockFetch(200, response);
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value[0].publishedDate).toBe('2024-06-15');
-    }
+    const results = await provider.search({ query: 'test', retries: 0 });
+    expect(results[0].publishedDate).toBe('2024-06-15');
   });
 
   it('returns empty array when no items in response', async () => {
     mockFetch(200, { ...sampleGoogleResponse, items: [] });
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value).toEqual([]);
-    }
+    const results = await provider.search({ query: 'test', retries: 0 });
+    expect(results).toEqual([]);
   });
 
   it('returns empty array when items is undefined', async () => {
     const { items: _items, ...responseWithoutItems } = sampleGoogleResponse;
     mockFetch(200, responseWithoutItems);
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value).toEqual([]);
-    }
+    const results = await provider.search({ query: 'test', retries: 0 });
+    expect(results).toEqual([]);
   });
 
   it('applies language parameter', async () => {
     mockFetch(200, sampleGoogleResponse);
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result = await provider.search({ query: 'test', language: 'en', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', language: 'en', retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('lr=lang_en');
   });
@@ -215,8 +201,7 @@ describe('createGoogleProvider', () => {
   it('applies region parameter', async () => {
     mockFetch(200, sampleGoogleResponse);
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result = await provider.search({ query: 'test', region: 'us', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', region: 'us', retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('gl=us');
   });
@@ -224,8 +209,7 @@ describe('createGoogleProvider', () => {
   it('applies safeSearch off parameter', async () => {
     mockFetch(200, sampleGoogleResponse);
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result = await provider.search({ query: 'test', safeSearch: 'off', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', safeSearch: 'off', retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('safe=off');
   });
@@ -233,8 +217,7 @@ describe('createGoogleProvider', () => {
   it('applies safeSearch strict parameter as active', async () => {
     mockFetch(200, sampleGoogleResponse);
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result = await provider.search({ query: 'test', safeSearch: 'strict', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', safeSearch: 'strict', retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('safe=active');
   });
@@ -242,8 +225,7 @@ describe('createGoogleProvider', () => {
   it('limits maxResults to 10', async () => {
     mockFetch(200, sampleGoogleResponse);
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result = await provider.search({ query: 'test', maxResults: 20, retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', maxResults: 20, retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('num=10');
   });
@@ -251,8 +233,7 @@ describe('createGoogleProvider', () => {
   it('calculates pagination start correctly for page 2', async () => {
     mockFetch(200, sampleGoogleResponse);
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result = await provider.search({ query: 'test', page: 2, maxResults: 10, retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', page: 2, maxResults: 10, retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('start=11');
   });
@@ -264,80 +245,85 @@ describe('createGoogleProvider', () => {
       cx: 'test-cx',
       baseUrl: 'https://custom.example.com/search',
     });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('custom.example.com');
   });
 
-  it('returns error on 400 error', async () => {
+  it('throws on 400 error', async () => {
     mockFetchError(400, { message: 'Bad request' }, 'Bad Request');
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('400');
     }
   });
 
-  it('returns error with diagnostic info on 403 with API key not valid', async () => {
+  it('throws with diagnostic info on 403 with API key not valid', async () => {
     mockFetchError(403, { error: { message: 'API key not valid' } }, 'Forbidden');
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('403');
       expect(msg.toLowerCase()).toContain('google');
     }
   });
 
-  it('returns error with diagnostic info on 403 with has not been used', async () => {
+  it('throws with diagnostic info on 403 with has not been used', async () => {
     mockFetchError(403, { error: { message: 'has not been used in project' } }, 'Forbidden');
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('403');
     }
   });
 
-  it('returns error with diagnostic info on 403 with dailyLimit', async () => {
+  it('throws with diagnostic info on 403 with dailyLimit', async () => {
     mockFetchError(403, { error: { message: 'dailyLimit exceeded' } }, 'Forbidden');
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('403');
     }
   });
 
-  it('returns error with diagnostic info on 403 with userRateLimitExceeded', async () => {
+  it('throws with diagnostic info on 403 with userRateLimitExceeded', async () => {
     mockFetchError(403, { error: { message: 'userRateLimitExceeded' } }, 'Forbidden');
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('403');
     }
   });
 
-  it('returns error with generic 403 message', async () => {
+  it('throws with generic 403 message', async () => {
     mockFetchError(403, { error: { message: 'Access denied' } }, 'Forbidden');
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('403');
       expect(msg.toLowerCase()).toContain('google');
@@ -347,10 +333,11 @@ describe('createGoogleProvider', () => {
   it('handles 400 with Invalid Value in message', async () => {
     mockFetchError(400, { message: 'Invalid Value for parameter' }, 'Bad Request');
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('400');
       expect(msg.toLowerCase()).toContain('google');
@@ -360,10 +347,11 @@ describe('createGoogleProvider', () => {
   it('wraps generic Error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('network error');
     }
@@ -372,10 +360,11 @@ describe('createGoogleProvider', () => {
   it('wraps non-Error throw', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue('string error'));
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('string error');
     }

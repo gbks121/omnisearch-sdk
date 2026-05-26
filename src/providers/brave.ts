@@ -1,11 +1,7 @@
-import { SearchOptions, SearchResult, ProviderConfig } from '../types';
+import { SearchQuery, SearchResult, ProviderConfig } from '../types';
 import { get, extractDomain, clampMaxResults } from '../utils';
-import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
 
-/**
- * Brave Search API response types
- */
 interface BraveSearchWeb {
   title: string;
   url: string;
@@ -67,19 +63,11 @@ interface BraveSearchResponse {
   count?: number;
 }
 
-/**
- * Brave Search configuration options
- */
 export interface BraveSearchConfig extends ProviderConfig {
-  /** Base URL for Brave Search API */
   baseUrl?: string;
-  /** Search type: 'web', 'news' */
   searchType?: 'web' | 'news';
 }
 
-/**
- * Default base URLs for Brave Search API
- */
 const DEFAULT_BASE_URLS = {
   web: 'https://api.search.brave.com/res/v1/web/search',
   news: 'https://api.search.brave.com/res/v1/news/search',
@@ -117,20 +105,12 @@ export class BraveSearchProvider extends AbstractSearchProvider<BraveSearchConfi
     return '';
   }
 
-  protected async doSearch(options: SearchOptions): Promise<SearchResult[]> {
-    const {
-      query,
-      maxResults = 10,
-      page = 1,
-      language,
-      region,
-      safeSearch,
-      timeout,
-      debug: debugOptions,
-    } = options;
+  protected async doSearch(options: SearchQuery): Promise<SearchResult[]> {
+    const { query, maxResults = 10, page = 1, language, region, safeSearch, timeout } = options;
 
     const clampedMaxResults = clampMaxResults(maxResults, 1, 50);
-    const searchType = this.config.searchType || 'web';
+    const searchType =
+      (options.searchType as 'web' | 'news') || (this.config.searchType as 'web' | 'news') || 'web';
     const baseUrl = this.config.baseUrl || DEFAULT_BASE_URLS[searchType];
 
     const offset = (page - 1) * clampedMaxResults;
@@ -147,7 +127,6 @@ export class BraveSearchProvider extends AbstractSearchProvider<BraveSearchConfi
       searchUrl.searchParams.append('offset', offset.toString());
     }
 
-    // Add language and region if available
     if (language) {
       searchUrl.searchParams.append('search_lang', language);
     }
@@ -156,38 +135,20 @@ export class BraveSearchProvider extends AbstractSearchProvider<BraveSearchConfi
       searchUrl.searchParams.append('country', region);
     }
 
-    // Map safe search setting (off, moderate, strict)
     if (safeSearch) {
       searchUrl.searchParams.append('safesearch', safeSearch);
     }
 
-    // Set up headers with API token
     const headers = {
       Accept: 'application/json',
       'X-Subscription-Token': this.config.apiKey || '',
     };
 
-    // Log request details if debugging is enabled
-    debug.logRequest(debugOptions, 'Brave Search request', {
-      url: searchUrl.toString(),
-      params: {
-        q: query,
-        count: clampedMaxResults,
-        offset,
-        search_lang: language,
-        country: region,
-        safesearch: safeSearch,
-      },
-    });
-
-    const result = await get<BraveSearchResponse>(searchUrl.toString(), {
+    const response = await get<BraveSearchResponse>(searchUrl.toString(), {
       headers,
       timeout,
     });
-    if (result.isErr()) throw result.error;
-    const response = result.value;
 
-    // Use results based on search type
     const results =
       searchType === 'web'
         ? response.web?.results || []
@@ -195,22 +156,10 @@ export class BraveSearchProvider extends AbstractSearchProvider<BraveSearchConfi
           ? response.results || []
           : response.web?.results || [];
 
-    // Log response if debugging is enabled
-    debug.logResponse(debugOptions, 'Brave Search raw response', {
-      status: 'success',
-      itemCount: results?.length || 0,
-      totalCount: response.count || 0,
-      queryInfo: response.query,
-      searchType,
-      rawResponse: response,
-    });
-
     if (results.length === 0) {
-      debug.log(debugOptions, 'Brave Search returned no results');
       return [];
     }
 
-    // Transform Brave response to standard SearchResult format
     return results.map((item) => {
       return {
         url: item.url,
@@ -225,12 +174,6 @@ export class BraveSearchProvider extends AbstractSearchProvider<BraveSearchConfi
   }
 }
 
-/**
- * Creates a Brave Search provider instance
- *
- * @param config Configuration options for Brave Search
- * @returns A configured Brave Search provider
- */
 export function createBraveProvider(config: BraveSearchConfig): BraveSearchProvider {
   return new BraveSearchProvider(config);
 }

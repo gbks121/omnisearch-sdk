@@ -1,11 +1,7 @@
-import { SearchOptions, SearchResult, ProviderConfig } from '../types';
+import { SearchQuery, SearchResult, ProviderConfig } from '../types';
 import { post, extractDomain, clampMaxResults } from '../utils';
-import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
 
-/**
- * Exa API response types
- */
 interface ExaSearchResult {
   title: string;
   url: string;
@@ -21,21 +17,12 @@ interface ExaSearchResponse {
   query: string;
 }
 
-/**
- * Exa configuration options
- */
 export interface ExaConfig extends ProviderConfig {
-  /** Base URL for Exa API */
   baseUrl?: string;
-  /** Search model to use (keyword or embeddings) */
   model?: 'keyword' | 'embeddings';
-  /** Whether to include content extraction */
   includeContents?: boolean;
 }
 
-/**
- * Default base URL for Exa API
- */
 const DEFAULT_BASE_URL = 'https://api.exa.ai/search';
 
 export class ExaSearchProvider extends AbstractSearchProvider<ExaConfig> {
@@ -64,8 +51,8 @@ export class ExaSearchProvider extends AbstractSearchProvider<ExaConfig> {
     return '';
   }
 
-  protected async doSearch(options: SearchOptions): Promise<SearchResult[]> {
-    const { query, maxResults = 10, timeout, debug: debugOptions } = options;
+  protected async doSearch(options: SearchQuery): Promise<SearchResult[]> {
+    const { query, maxResults = 10, timeout } = options;
 
     if (!query || !query.trim()) {
       throw new Error('Exa search requires a query.');
@@ -82,26 +69,12 @@ export class ExaSearchProvider extends AbstractSearchProvider<ExaConfig> {
 
     const baseUrl = this.config.baseUrl || DEFAULT_BASE_URL;
 
-    debug.logRequest(debugOptions, 'Exa Search request', {
-      url: baseUrl,
-      headers: { Authorization: 'Bearer ***' },
-      body: requestBody,
-    });
-
-    const result = await post<ExaSearchResponse>(baseUrl, requestBody, {
+    const response = await post<ExaSearchResponse>(baseUrl, requestBody, {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.config.apiKey}`,
       },
       timeout,
-    });
-    if (result.isErr()) throw result.error;
-    const response = result.value;
-
-    debug.logResponse(debugOptions, 'Exa Search raw response', {
-      status: 'success',
-      itemCount: response.results?.length || 0,
-      query: response.query,
     });
 
     if (!response.results || response.results.length === 0) {
@@ -122,9 +95,6 @@ export class ExaSearchProvider extends AbstractSearchProvider<ExaConfig> {
   }
 }
 
-/**
- * Creates an Exa search provider instance
- */
 export function createExaProvider(config: ExaConfig): ExaSearchProvider {
   return new ExaSearchProvider(config);
 }

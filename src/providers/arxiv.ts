@@ -1,11 +1,8 @@
-import { debug, get, clampMaxResults } from '../utils';
-import { SearchResult, SearchOptions, ProviderConfig } from '../types';
+import { get, clampMaxResults } from '../utils';
+import { SearchResult, SearchQuery, ProviderConfig } from '../types';
 import { XMLParser } from 'fast-xml-parser';
 import { AbstractSearchProvider } from './base';
 
-/**
- * Arxiv API (Atom 1.0 XML) feed structure.
- */
 interface ArxivAtomLink {
   href: string;
   rel: string;
@@ -48,40 +45,14 @@ interface ArxivParsedXml {
   feed: ArxivAtomFeed;
 }
 
-/**
- * Arxiv configuration options
- */
 export interface ArxivConfig extends ProviderConfig {
-  /** Base URL for Arxiv API query endpoint */
   baseUrl?: string;
-  /** Default sort order for results */
   sortBy?: 'relevance' | 'lastUpdatedDate' | 'submittedDate';
-  /** Default sort direction */
   sortOrder?: 'ascending' | 'descending';
 }
 
-/**
- * Arxiv specific search options
- */
-export interface ArxivSearchOptions extends SearchOptions {
-  /** A comma-delimited list of Arxiv IDs to fetch. */
-  idList?: string;
-  /** Pagination offset */
-  start?: number;
-  /** Sort order */
-  sortBy?: 'relevance' | 'lastUpdatedDate' | 'submittedDate';
-  /** Sort direction */
-  sortOrder?: 'ascending' | 'descending';
-}
-
-/**
- * Default base URL for Arxiv API
- */
 const DEFAULT_BASE_URL = 'https://export.arxiv.org/api/query';
 
-/**
- * Shared XMLParser instance configured for Arxiv Atom feeds.
- */
 const arxivXmlParser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '',
@@ -99,7 +70,7 @@ const arxivXmlParser = new XMLParser({
   parseTagValue: false,
 });
 
-export class ArxivSearchProvider extends AbstractSearchProvider<ArxivConfig, ArxivSearchOptions> {
+export class ArxivSearchProvider extends AbstractSearchProvider<ArxivConfig> {
   public readonly name = 'arxiv';
 
   protected getTroubleshooting(_error: Error, statusCode?: number): string {
@@ -118,17 +89,17 @@ export class ArxivSearchProvider extends AbstractSearchProvider<ArxivConfig, Arx
     return '';
   }
 
-  protected async doSearch(options: ArxivSearchOptions): Promise<SearchResult[]> {
-    const {
-      query,
-      idList,
-      maxResults = 10,
-      start = 0,
-      sortBy = this.config.sortBy || 'relevance',
-      sortOrder = this.config.sortOrder || 'descending',
-      debug: debugOptions,
-      timeout,
-    } = options;
+  protected async doSearch(options: SearchQuery): Promise<SearchResult[]> {
+    const { query, maxResults = 10, timeout } = options;
+
+    const idList = options.idList as string | undefined;
+    const start = (options.start as number) ?? 0;
+    const sortBy =
+      (options.sortBy as 'relevance' | 'lastUpdatedDate' | 'submittedDate') ||
+      this.config.sortBy ||
+      'relevance';
+    const sortOrder =
+      (options.sortOrder as 'ascending' | 'descending') || this.config.sortOrder || 'descending';
 
     if (!query && !idList) {
       throw new Error('Arxiv search requires either a "query" or an "idList".');
@@ -151,21 +122,11 @@ export class ArxivSearchProvider extends AbstractSearchProvider<ArxivConfig, Arx
     const baseUrl = this.config.baseUrl || DEFAULT_BASE_URL;
     const url = `${baseUrl}?${params.toString()}`;
 
-    debug.logRequest(debugOptions, 'Arxiv Search request', { url });
-
-    const result = await get<string>(url, { timeout });
-    if (result.isErr()) throw result.error;
-    const responseXmlText = result.value;
-    debug.log(debugOptions, 'Arxiv raw XML response received', {
-      length: responseXmlText.length,
-    });
+    const responseXmlText = await get<string>(url, { timeout });
 
     const parsedXml: ArxivParsedXml = arxivXmlParser.parse(responseXmlText);
 
-    debug.log(debugOptions, 'Arxiv XML parsed successfully');
-
     if (!parsedXml || !parsedXml.feed) {
-      debug.log(debugOptions, 'Arxiv parsed data is empty or malformed', { parsedXml });
       return [];
     }
 
@@ -173,7 +134,6 @@ export class ArxivSearchProvider extends AbstractSearchProvider<ArxivConfig, Arx
     const entries = feed.entry ?? [];
 
     if (entries.length === 0) {
-      debug.log(debugOptions, 'No entries found in Arxiv response');
       return [];
     }
 
@@ -200,22 +160,10 @@ export class ArxivSearchProvider extends AbstractSearchProvider<ArxivConfig, Arx
       };
     });
 
-    const totalResults = parseInt(String(feed['opensearch:totalResults']), 10) || 0;
-    debug.logResponse(debugOptions, 'Arxiv Search successful', {
-      status: 'success',
-      itemCount: results.length,
-      totalResults,
-    });
     return results;
   }
 }
 
-/**
- * Creates an Arxiv provider instance
- *
- * @param config Configuration options for Arxiv
- * @returns A configured Arxiv provider
- */
 export function createArxivProvider(config: ArxivConfig = {}): ArxivSearchProvider {
   return new ArxivSearchProvider(config);
 }

@@ -51,12 +51,13 @@ describe('createPerplexityProvider', () => {
     expect(provider.name).toBe('perplexity');
   });
 
-  it('returns error if no query is provided', async () => {
+  it('throws if no query is provided', async () => {
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('requires a query');
     }
@@ -65,56 +66,42 @@ describe('createPerplexityProvider', () => {
   it('returns search results correctly', async () => {
     mockFetch(200, samplePerplexityResponse);
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
+    const results = await provider.search({ query: 'test', retries: 0 });
 
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      const results = result.value;
-      expect(results).toHaveLength(2);
-      expect(results[0].url).toBe('https://example.com/perplexity');
-      expect(results[0].title).toBe('Perplexity Result');
-      expect(results[0].snippet).toBe('Perplexity snippet content');
-      expect(results[0].domain).toBe('example.com');
-      expect(results[0].publishedDate).toBe('2024-02-15'); // last_updated takes priority
-      expect(results[0].provider).toBe('perplexity');
-    }
+    expect(results).toHaveLength(2);
+    expect(results[0].url).toBe('https://example.com/perplexity');
+    expect(results[0].title).toBe('Perplexity Result');
+    expect(results[0].snippet).toBe('Perplexity snippet content');
+    expect(results[0].domain).toBe('example.com');
+    expect(results[0].publishedDate).toBe('2024-02-15');
+    expect(results[0].provider).toBe('perplexity');
   });
 
   it('falls back to date when last_updated is empty', async () => {
     mockFetch(200, samplePerplexityResponse);
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value[1].publishedDate).toBe('2024-01-10');
-    }
+    const results = await provider.search({ query: 'test', retries: 0 });
+    expect(results[1].publishedDate).toBe('2024-01-10');
   });
 
   it('returns empty array when no results', async () => {
     mockFetch(200, { results: [] });
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value).toEqual([]);
-    }
+    const results = await provider.search({ query: 'test', retries: 0 });
+    expect(results).toEqual([]);
   });
 
   it('returns empty array when results is undefined', async () => {
     mockFetch(200, {});
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value).toEqual([]);
-    }
+    const results = await provider.search({ query: 'test', retries: 0 });
+    expect(results).toEqual([]);
   });
 
   it('sends Authorization Bearer header', async () => {
     mockFetch(200, samplePerplexityResponse);
     const provider = createPerplexityProvider({ apiKey: 'my-perplexity-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', retries: 0 });
     const options = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][1];
     expect(options.headers.Authorization).toBe('Bearer my-perplexity-key');
   });
@@ -122,8 +109,7 @@ describe('createPerplexityProvider', () => {
   it('caps maxResults to 20', async () => {
     mockFetch(200, samplePerplexityResponse);
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', maxResults: 100, retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', maxResults: 100, retries: 0 });
     const options = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][1];
     const body = JSON.parse(options.body);
     expect(body.max_results).toBe(20);
@@ -132,8 +118,7 @@ describe('createPerplexityProvider', () => {
   it('ensures maxResults minimum of 1', async () => {
     mockFetch(200, samplePerplexityResponse);
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', maxResults: 0, retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', maxResults: 0, retries: 0 });
     const options = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][1];
     const body = JSON.parse(options.body);
     expect(body.max_results).toBe(1);
@@ -147,8 +132,7 @@ describe('createPerplexityProvider', () => {
       maxTokensPerPage: 1000,
       searchDomainFilter: ['example.com'],
     });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', retries: 0 });
     const options = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][1];
     const body = JSON.parse(options.body);
     expect(body.max_tokens).toBe(5000);
@@ -159,8 +143,7 @@ describe('createPerplexityProvider', () => {
   it('applies region as country in request body', async () => {
     mockFetch(200, samplePerplexityResponse);
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', region: 'US', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', region: 'US', retries: 0 });
     const options = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][1];
     const body = JSON.parse(options.body);
     expect(body.country).toBe('US');
@@ -169,8 +152,7 @@ describe('createPerplexityProvider', () => {
   it('falls back to config country when region is not provided', async () => {
     mockFetch(200, samplePerplexityResponse);
     const provider = createPerplexityProvider({ apiKey: 'test-key', country: 'GB' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', retries: 0 });
     const options = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][1];
     const body = JSON.parse(options.body);
     expect(body.country).toBe('GB');
@@ -182,8 +164,7 @@ describe('createPerplexityProvider', () => {
       apiKey: 'test-key',
       searchRecencyFilter: 'week',
     });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', retries: 0 });
     const options = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][1];
     const body = JSON.parse(options.body);
     expect(body.search_recency_filter).toBe('week');
@@ -196,8 +177,7 @@ describe('createPerplexityProvider', () => {
       searchAfterDate: '01/01/2024',
       searchBeforeDate: '12/31/2024',
     });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', retries: 0 });
     const options = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][1];
     const body = JSON.parse(options.body);
     expect(body.search_after_date).toBe('01/01/2024');
@@ -210,8 +190,7 @@ describe('createPerplexityProvider', () => {
       apiKey: 'test-key',
       searchLanguageFilter: ['en', 'fr'],
     });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', retries: 0 });
     const options = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][1];
     const body = JSON.parse(options.body);
     expect(body.search_language_filter).toEqual(['en', 'fr']);
@@ -220,8 +199,7 @@ describe('createPerplexityProvider', () => {
   it('uses language option as searchLanguageFilter when no config filter', async () => {
     mockFetch(200, samplePerplexityResponse);
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', language: 'de', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', language: 'de', retries: 0 });
     const options = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][1];
     const body = JSON.parse(options.body);
     expect(body.search_language_filter).toEqual(['de']);
@@ -233,8 +211,7 @@ describe('createPerplexityProvider', () => {
       apiKey: 'test-key',
       baseUrl: 'https://custom-perplexity.example.com/search',
     });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
+    await provider.search({ query: 'test', retries: 0 });
     const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(url).toContain('custom-perplexity.example.com');
   });
@@ -247,20 +224,18 @@ describe('createPerplexityProvider', () => {
     };
     mockFetch(200, response);
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isOk()).toBe(true);
-    if (result.isOk()) {
-      expect(result.value).toEqual([]);
-    }
+    const results = await provider.search({ query: 'test', retries: 0 });
+    expect(results).toEqual([]);
   });
 
   it('returns detailed error on 401', async () => {
     mockFetch(401, { message: 'Unauthorized' }, 'Unauthorized');
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('401');
       expect(msg.toLowerCase()).toContain('perplexity');
@@ -270,10 +245,11 @@ describe('createPerplexityProvider', () => {
   it('returns detailed error on 403', async () => {
     mockFetch(403, { message: 'Forbidden' }, 'Forbidden');
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('403');
       expect(msg.toLowerCase()).toContain('perplexity');
@@ -283,10 +259,11 @@ describe('createPerplexityProvider', () => {
   it('returns detailed error on 429', async () => {
     mockFetch(429, { message: 'Too Many Requests' }, 'Too Many Requests');
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('429');
       expect(msg.toLowerCase()).toContain('rate limit');
@@ -296,10 +273,11 @@ describe('createPerplexityProvider', () => {
   it('returns detailed error on 400 with max_results mention', async () => {
     mockFetch(400, { message: 'max_results invalid' }, 'Bad Request');
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('400');
       expect(msg.toLowerCase()).toContain('max_results');
@@ -309,10 +287,11 @@ describe('createPerplexityProvider', () => {
   it('returns detailed error on 400 with search_recency_filter mention', async () => {
     mockFetch(400, { message: 'invalid search_recency_filter' }, 'Bad Request');
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('400');
       expect(msg.toLowerCase()).toContain('search_recency_filter');
@@ -322,10 +301,11 @@ describe('createPerplexityProvider', () => {
   it('returns detailed error on 400 with date mention', async () => {
     mockFetch(400, { message: 'invalid search_after_date format' }, 'Bad Request');
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('400');
       expect(msg.toLowerCase()).toContain('mm/dd/yyyy');
@@ -335,10 +315,11 @@ describe('createPerplexityProvider', () => {
   it('returns detailed error on 500+', async () => {
     mockFetch(503, { message: 'Service Unavailable' }, 'Service Unavailable');
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('503');
       expect(msg.toLowerCase()).toContain('server error');
@@ -348,10 +329,11 @@ describe('createPerplexityProvider', () => {
   it('handles generic Error with api_key mention', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Invalid api_key')));
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('perplexity');
     }
@@ -360,10 +342,11 @@ describe('createPerplexityProvider', () => {
   it('handles generic Error with timeout mention', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Request timeout')));
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('timeout');
     }
@@ -372,10 +355,11 @@ describe('createPerplexityProvider', () => {
   it('wraps non-Error throws', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue('string error'));
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
-    const result = await provider.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      const msg = result.error.message;
+    try {
+      await provider.search({ query: 'test', retries: 0 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      const msg = (error as Error).message;
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('string error');
     }

@@ -284,7 +284,6 @@ describe('createDuckDuckGoProvider', () => {
       const provider = createDuckDuckGoProvider();
       const result = await provider.search({
         query: 'test',
-        // @ts-expect-error - testing DuckDuckGo-specific option
         searchType: 'images',
         retries: 0,
       });

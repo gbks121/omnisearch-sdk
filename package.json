@@ -21,6 +21,7 @@
     "dev": "tsup --watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "type-check": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "prepublishOnly": "pnpm run build",

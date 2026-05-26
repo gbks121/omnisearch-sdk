@@ -2,7 +2,7 @@
 
 A unified, high-performance TypeScript SDK for web search providers.
 
-Inspired by [PlustOrg/search-sdk](https://github.com/PlustOrg/search-sdk), this version is a **complete overhaul and redesign** focused on enterprise-grade reliability, functional error handling, and robust concurrency.
+Inspired by [PlustOrg/search-sdk](https://github.com/PlustOrg/search-sdk), this version is a **complete overhaul and redesign** focused on reliability, functional error handling, and robust concurrency.
 
 ## ✨ Key Enhancements
 
@@ -43,7 +43,7 @@ async function search() {
     });
 
     // Results is an array of SearchResult objects
-    results.forEach(res => {
+    results.forEach((res) => {
       console.log(`[${res.provider}] ${res.title} - ${res.url}`);
     });
   } catch (error) {
@@ -59,31 +59,31 @@ All providers return a standardized `SearchResult` object:
 
 ```typescript
 interface SearchResult {
-  url: string;           // Validated URL of the result
-  title: string;         // Result title
-  snippet?: string;      // Short description or snippet
-  content?: string;      // Full content (if supported by provider, e.g. Exa)
-  domain?: string;       // Extracted domain name
-  publishedDate?: string;// RFC3339 or ISO8601 date string
-  provider: string;      // Name of the provider (e.g. 'google')
-  raw?: any;             // The original unmapped response item
+  url: string; // Validated URL of the result
+  title: string; // Result title
+  snippet?: string; // Short description or snippet
+  content?: string; // Full content (if supported by provider, e.g. Exa)
+  domain?: string; // Extracted domain name
+  publishedDate?: string; // RFC3339 or ISO8601 date string
+  provider: string; // Name of the provider (e.g. 'google')
+  raw?: any; // The original unmapped response item
 }
 ```
 
 ## 🛠️ Supported Providers
 
-| Provider | Factory Function | Requirements |
-| :--- | :--- | :--- |
-| **Google** | `createGoogleProvider` | API Key & CX (Search Engine ID) |
-| **Brave** | `createBraveProvider` | API Key |
-| **Exa** | `createExaProvider` | API Key |
-| **Tavily** | `createTavilyProvider` | API Key |
-| **SerpAPI** | `createSerpApiProvider` | API Key |
-| **Perplexity** | `createPerplexityProvider` | API Key |
-| **SearXNG** | `createSearXNGProvider` | Instance URL |
-| **Arxiv** | `createArxivProvider` | None |
-| **DuckDuckGo** | `createDuckDuckGoProvider` | None (Scraping) |
-| **Parallel** | `createParallelProvider` | API Key |
+| Provider       | Factory Function           | Requirements                    |
+| :------------- | :------------------------- | :------------------------------ |
+| **Google**     | `createGoogleProvider`     | API Key & CX (Search Engine ID) |
+| **Brave**      | `createBraveProvider`      | API Key                         |
+| **Exa**        | `createExaProvider`        | API Key                         |
+| **Tavily**     | `createTavilyProvider`     | API Key                         |
+| **SerpAPI**    | `createSerpApiProvider`    | API Key                         |
+| **Perplexity** | `createPerplexityProvider` | API Key                         |
+| **SearXNG**    | `createSearXNGProvider`    | Instance URL                    |
+| **Arxiv**      | `createArxivProvider`      | None                            |
+| **DuckDuckGo** | `createDuckDuckGoProvider` | None (Scraping)                 |
+| **Parallel**   | `createParallelProvider`   | API Key                         |
 
 ## 🧩 Advanced Usage
 
@@ -131,16 +131,16 @@ const google = createGoogleProvider({
   apiKey: '...',
   cx: '...',
   // Global timeout for all requests to this provider
-  timeout: 5000, 
+  timeout: 5000,
   // Proactive rate limiting: 5 requests per 2 seconds
   throttleLimit: 5,
-  throttleInterval: 2000 
+  throttleInterval: 2000,
 });
 
 // You can also override timeout per request
-await google.search({ 
-  query: 'TypeScript', 
-  timeout: 2000 
+await google.search({
+  query: 'TypeScript',
+  timeout: 2000,
 });
 ```
 
@@ -174,8 +174,8 @@ const results = await webSearch({
   provider: [google],
   debug: {
     enabled: true,
-    logResponse: true // Logs raw responses for troubleshooting
-  }
+    logResponse: true, // Logs raw responses for troubleshooting
+  },
 });
 ```
 

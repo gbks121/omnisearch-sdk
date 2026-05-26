@@ -1,4 +1,4 @@
-import { SearchOptions, SearchResult } from '../types';
+import { SearchOptions, SearchResult, ProviderConfig } from '../types';
 import { buildUrl, get } from '../utils';
 import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
@@ -73,7 +73,7 @@ interface GoogleSearchResponse {
 /**
  * Google Custom Search configuration options
  */
-export interface GoogleSearchConfig {
+export interface GoogleSearchConfig extends ProviderConfig {
   /** Google Custom Search Engine ID */
   cx: string;
   /** API key or token */

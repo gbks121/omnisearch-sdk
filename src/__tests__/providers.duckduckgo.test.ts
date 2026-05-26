@@ -30,8 +30,8 @@ const sampleDDGHtml = `
 <body>
 <div class="results">
   <div class="result">
-    <h2 class="result__title"><a class="result__a" href="https://example.com">Example Title</a></h2>
-    <a class="result__snippet">Example snippet text here</a>
+    <h2 class="result__title"><a rel="nofollow" class="result__a" href="https://example.com">Example Title</a></h2>
+    <a class="result__snippet" href="https://example.com">Example snippet text here</a>
   </div>
 </div>
 vqd='abc123xyz'

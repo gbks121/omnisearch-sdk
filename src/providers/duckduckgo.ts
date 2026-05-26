@@ -154,14 +154,20 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
     const useLite = this.config.useLite || false;
     const baseUrl =
       this.config.baseUrl || (useLite ? DEFAULT_BASE_URLS.lite : DEFAULT_BASE_URLS.text);
-    const payload = { q: query, b: '', kl: region };
+    const payload = new URLSearchParams({ q: query, b: '', kl: region }).toString();
 
     debug.logRequest(debugOptions, 'DuckDuckGo Text Search request', {
       url: baseUrl,
       payload,
     });
 
-    const result = await post<string>(baseUrl, payload, { headers: this.getHeaders(), timeout });
+    const result = await post<string>(baseUrl, payload, {
+      headers: {
+        ...this.getHeaders(),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      timeout,
+    });
     if (result.isErr()) throw result.error;
     const response = result.value;
     const results: SearchResult[] = [];
@@ -185,7 +191,7 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
       }
     } else {
       const resultsRegex =
-        /<h2 class="result__title">.*?<a class="result__a" href="([^"]+)"[^>]*>(.*?)<\/a>.*?<\/h2>.*?<a class="result__snippet" [^>]*>(.*?)<\/a>/gs;
+        /<h2 class="result__title">.*?<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>.*?<\/h2>.*?<a[^>]*class="result__snippet"[^>]*>(.*?)<\/a>/gs;
       let match;
       while ((match = resultsRegex.exec(response)) !== null && results.length < maxResults) {
         const href = match[1];

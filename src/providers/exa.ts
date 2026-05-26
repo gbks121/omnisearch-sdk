@@ -1,5 +1,5 @@
 import { SearchOptions, SearchResult, ProviderConfig } from '../types';
-import { post } from '../utils';
+import { post, extractDomain, clampMaxResults } from '../utils';
 import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
 
@@ -71,9 +71,11 @@ export class ExaSearchProvider extends AbstractSearchProvider<ExaConfig> {
       throw new Error('Exa search requires a query.');
     }
 
+    const clampedMaxResults = clampMaxResults(maxResults);
+
     const requestBody = {
       query,
-      max_results: maxResults,
+      max_results: clampedMaxResults,
       model: this.config.model || 'keyword',
       include_contents: this.config.includeContents || false,
     };
@@ -107,18 +109,11 @@ export class ExaSearchProvider extends AbstractSearchProvider<ExaConfig> {
     }
 
     return response.results.map((result) => {
-      let domain;
-      try {
-        domain = new URL(result.url).hostname;
-      } catch {
-        domain = undefined;
-      }
-
       return {
         url: result.url,
         title: result.title,
         snippet: result.text,
-        domain,
+        domain: extractDomain(result.url),
         publishedDate: result.publish_date,
         provider: 'exa',
         raw: result,

@@ -8,5 +8,5 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   minify: false,
-  target: 'es2022',
+  target: 'es2023',
 });

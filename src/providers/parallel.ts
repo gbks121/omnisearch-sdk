@@ -1,5 +1,5 @@
 import { SearchOptions, SearchResult, ProviderConfig } from '../types';
-import { post } from '../utils';
+import { post, extractDomain, clampMaxResults } from '../utils';
 import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
 
@@ -145,7 +145,7 @@ export class ParallelSearchProvider extends AbstractSearchProvider<ParallelConfi
       requestBody.mode = this.config.mode;
     }
 
-    const effectiveMaxResults = maxResults || this.config.maxResults || 10;
+    const effectiveMaxResults = clampMaxResults(maxResults || this.config.maxResults || 10);
     requestBody.max_results = effectiveMaxResults;
 
     if (this.config.maxCharsPerResult !== undefined || this.config.excerptCount !== undefined) {
@@ -225,13 +225,6 @@ export class ParallelSearchProvider extends AbstractSearchProvider<ParallelConfi
     }
 
     return response.results.map((result) => {
-      let domain;
-      try {
-        domain = new URL(result.url).hostname;
-      } catch {
-        domain = undefined;
-      }
-
       const excerpts = result.excerpts || [];
       const snippet = excerpts.length > 0 ? excerpts[0] : undefined;
       const content = excerpts.length > 0 ? excerpts.join('\n\n') : undefined;
@@ -241,7 +234,7 @@ export class ParallelSearchProvider extends AbstractSearchProvider<ParallelConfi
         title: result.title || 'No title available',
         snippet,
         content,
-        domain,
+        domain: extractDomain(result.url),
         publishedDate: result.publish_date,
         provider: 'parallel',
         raw: result,

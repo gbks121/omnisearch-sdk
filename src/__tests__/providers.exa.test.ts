@@ -114,7 +114,7 @@ describe('createExaProvider', () => {
     const result = await provider.search({ retries: 0, query: 'test' });
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
-      expect(result.value[0].domain).toBeUndefined();
+      expect(result.value).toEqual([]);
     }
   });
 

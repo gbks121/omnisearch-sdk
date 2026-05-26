@@ -1,5 +1,5 @@
 import { SearchOptions, SearchResult, ProviderConfig } from '../types';
-import { post } from '../utils';
+import { post, extractDomain } from '../utils';
 import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
 
@@ -172,20 +172,13 @@ export class PerplexitySearchProvider extends AbstractSearchProvider<PerplexityC
     }
 
     return response.results.map((result) => {
-      let domain;
-      try {
-        domain = new URL(result.url).hostname;
-      } catch {
-        domain = undefined;
-      }
-
       const publishedDate = result.last_updated || result.date;
 
       return {
         url: result.url,
         title: result.title,
         snippet: result.snippet,
-        domain,
+        domain: extractDomain(result.url),
         publishedDate,
         provider: 'perplexity',
         raw: result,

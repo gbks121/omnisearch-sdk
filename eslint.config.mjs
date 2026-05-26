@@ -5,7 +5,7 @@ import prettierConfig from 'eslint-config-prettier';
 
 export default [
   {
-    ignores: ['dist/', 'node_modules/', 'coverage/', '*.mjs', 'vitest.config.ts', 'debug_error.ts', 'tsup.config.ts'],
+    ignores: ['dist/', 'node_modules/', 'coverage/', '*.mjs', 'vitest.config.ts', 'tsup.config.ts'],
   },
   // Use the flat-config-native variant of the recommended ruleset
   ...tseslint.configs['flat/recommended'],

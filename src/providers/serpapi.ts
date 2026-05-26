@@ -1,5 +1,5 @@
 import { SearchOptions, SearchResult, ProviderConfig } from '../types';
-import { buildUrl, get } from '../utils';
+import { buildUrl, get, clampMaxResults } from '../utils';
 import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
 
@@ -68,6 +68,9 @@ const DEFAULT_BASE_URL = 'https://serpapi.com/search.json';
 
 export class SerpApiSearchProvider extends AbstractSearchProvider<SerpApiConfig> {
   public readonly name = 'serpapi';
+  protected override get displayName(): string {
+    return 'SerpAPI';
+  }
 
   constructor(config: SerpApiConfig) {
     if (!config.apiKey) {
@@ -111,12 +114,14 @@ export class SerpApiSearchProvider extends AbstractSearchProvider<SerpApiConfig>
       throw new Error('SerpAPI search requires a query.');
     }
 
+    const clampedMaxResults = clampMaxResults(maxResults);
+
     const params: Record<string, string | number | boolean | undefined> = {
       engine: this.config.engine || 'google',
       api_key: this.config.apiKey,
       q: query,
-      num: maxResults,
-      start: page > 1 ? (page - 1) * maxResults + 1 : undefined,
+      num: clampedMaxResults,
+      start: page > 1 ? (page - 1) * clampedMaxResults + 1 : undefined,
     };
 
     if (language) params.hl = language;

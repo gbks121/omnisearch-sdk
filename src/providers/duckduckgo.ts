@@ -1,5 +1,6 @@
 import { SearchOptions, SearchResult, ProviderConfig, DebugOptions } from '../types';
 import { get, post } from '../utils';
+import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
 
 /**
@@ -92,6 +93,9 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
   DuckDuckGoSearchOptions
 > {
   public readonly name = 'duckduckgo';
+  protected override get displayName(): string {
+    return 'DuckDuckGo';
+  }
 
   protected getTroubleshooting(error: Error, statusCode?: number): string {
     if (error.message.includes('vqd')) {
@@ -132,7 +136,7 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
     return {
       'User-Agent':
         this.config.userAgent ||
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
       Referer: this.config.useLite
         ? 'https://lite.duckduckgo.com/'
         : 'https://html.duckduckgo.com/',
@@ -144,13 +148,18 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
     region: string,
     _safeSearch: string,
     maxResults: number,
-    _debugOptions?: DebugOptions,
+    debugOptions?: DebugOptions,
     timeout?: number
   ): Promise<SearchResult[]> {
     const useLite = this.config.useLite || false;
     const baseUrl =
       this.config.baseUrl || (useLite ? DEFAULT_BASE_URLS.lite : DEFAULT_BASE_URLS.text);
     const payload = { q: query, b: '', kl: region };
+
+    debug.logRequest(debugOptions, 'DuckDuckGo Text Search request', {
+      url: baseUrl,
+      payload,
+    });
 
     const result = await post<string>(baseUrl, payload, { headers: this.getHeaders(), timeout });
     if (result.isErr()) throw result.error;
@@ -192,6 +201,11 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
       }
     }
 
+    debug.logResponse(debugOptions, 'DuckDuckGo Text Search response', {
+      status: 'success',
+      itemCount: results.length,
+    });
+
     return results;
   }
 
@@ -200,10 +214,19 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
     region: string,
     safeSearch: string,
     maxResults: number,
-    _debugOptions?: DebugOptions,
+    debugOptions?: DebugOptions,
     timeout?: number
   ): Promise<SearchResult[]> {
     const baseUrl = this.config.baseUrl || DEFAULT_BASE_URLS.images;
+
+    debug.logRequest(debugOptions, 'DuckDuckGo Images Search request', {
+      url: baseUrl,
+      query,
+      region,
+      safeSearch,
+      maxResults,
+    });
+
     const initialResult = await get<string>('https://duckduckgo.com', {
       headers: { ...this.getHeaders(), Referer: 'https://duckduckgo.com/' },
       timeout,
@@ -243,6 +266,12 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
         }
       }
     }
+
+    debug.logResponse(debugOptions, 'DuckDuckGo Images Search response', {
+      status: 'success',
+      itemCount: results.length,
+    });
+
     return results;
   }
 
@@ -251,10 +280,19 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
     region: string,
     safeSearch: string,
     maxResults: number,
-    _debugOptions?: DebugOptions,
+    debugOptions?: DebugOptions,
     timeout?: number
   ): Promise<SearchResult[]> {
     const baseUrl = this.config.baseUrl || DEFAULT_BASE_URLS.news;
+
+    debug.logRequest(debugOptions, 'DuckDuckGo News Search request', {
+      url: baseUrl,
+      query,
+      region,
+      safeSearch,
+      maxResults,
+    });
+
     const initialResult = await get<string>('https://duckduckgo.com', {
       headers: { ...this.getHeaders(), Referer: 'https://duckduckgo.com/' },
       timeout,
@@ -296,6 +334,12 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<
         }
       }
     }
+
+    debug.logResponse(debugOptions, 'DuckDuckGo News Search response', {
+      status: 'success',
+      itemCount: results.length,
+    });
+
     return results;
   }
 }

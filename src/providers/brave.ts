@@ -1,5 +1,5 @@
-import { SearchOptions, SearchProvider, SearchResult, ProviderConfig } from '../types';
-import { get } from '../utils';
+import { SearchOptions, SearchResult, ProviderConfig } from '../types';
+import { get, extractDomain, clampMaxResults } from '../utils';
 import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
 
@@ -129,20 +129,19 @@ export class BraveSearchProvider extends AbstractSearchProvider<BraveSearchConfi
       debug: debugOptions,
     } = options;
 
+    const clampedMaxResults = clampMaxResults(maxResults, 1, 50);
     const searchType = this.config.searchType || 'web';
     const baseUrl = this.config.baseUrl || DEFAULT_BASE_URLS[searchType];
 
-    // Calculate offset for pagination
-    const offset = (page - 1) * maxResults;
+    const offset = (page - 1) * clampedMaxResults;
 
-    // Build query parameters
     if (!query || !query.trim()) {
       throw new Error('Brave search requires a query.');
     }
 
     const searchUrl = new URL(baseUrl);
     searchUrl.searchParams.append('q', query);
-    searchUrl.searchParams.append('count', maxResults.toString());
+    searchUrl.searchParams.append('count', clampedMaxResults.toString());
 
     if (offset > 0) {
       searchUrl.searchParams.append('offset', offset.toString());
@@ -173,7 +172,7 @@ export class BraveSearchProvider extends AbstractSearchProvider<BraveSearchConfi
       url: searchUrl.toString(),
       params: {
         q: query,
-        count: maxResults,
+        count: clampedMaxResults,
         offset,
         search_lang: language,
         country: region,
@@ -213,19 +212,11 @@ export class BraveSearchProvider extends AbstractSearchProvider<BraveSearchConfi
 
     // Transform Brave response to standard SearchResult format
     return results.map((item) => {
-      // Extract domain from URL
-      let domain;
-      try {
-        domain = new URL(item.url).hostname;
-      } catch {
-        domain = undefined;
-      }
-
       return {
         url: item.url,
         title: item.title,
         snippet: item.description,
-        domain,
+        domain: extractDomain(item.url),
         publishedDate: item.age,
         provider: 'brave',
         raw: item,
@@ -240,6 +231,6 @@ export class BraveSearchProvider extends AbstractSearchProvider<BraveSearchConfi
  * @param config Configuration options for Brave Search
  * @returns A configured Brave Search provider
  */
-export function createBraveProvider(config: BraveSearchConfig): SearchProvider {
+export function createBraveProvider(config: BraveSearchConfig): BraveSearchProvider {
   return new BraveSearchProvider(config);
 }

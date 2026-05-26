@@ -1,5 +1,5 @@
 import { SearchOptions, SearchResult, ProviderConfig } from '../types';
-import { get } from '../utils';
+import { get, extractDomain, clampMaxResults } from '../utils';
 import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
 
@@ -41,6 +41,9 @@ export interface SearXNGConfig extends ProviderConfig {
 
 export class SearXNGSearchProvider extends AbstractSearchProvider<SearXNGConfig> {
   public readonly name = 'searxng';
+  protected override get displayName(): string {
+    return 'SearXNG';
+  }
 
   constructor(config: SearXNGConfig) {
     if (!config.baseUrl) {
@@ -75,12 +78,14 @@ export class SearXNGSearchProvider extends AbstractSearchProvider<SearXNGConfig>
       throw new Error('SearXNG search requires a query.');
     }
 
+    const clampedMaxResults = clampMaxResults(maxResults);
+
     const searchUrl = new URL(this.config.baseUrl);
     searchUrl.searchParams.append('q', query.trim());
     searchUrl.searchParams.append('format', 'json');
 
-    if (maxResults) {
-      searchUrl.searchParams.append('count', maxResults.toString());
+    if (clampedMaxResults) {
+      searchUrl.searchParams.append('count', clampedMaxResults.toString());
     }
 
     if (language) {
@@ -106,7 +111,7 @@ export class SearXNGSearchProvider extends AbstractSearchProvider<SearXNGConfig>
       url: searchUrl.toString().replace(/api_key=([^&]*)/, 'api_key=***'),
       params: {
         q: query,
-        count: maxResults,
+        count: clampedMaxResults,
         language,
         safesearch: safeSearch
           ? safeSearch === 'off'
@@ -137,18 +142,11 @@ export class SearXNGSearchProvider extends AbstractSearchProvider<SearXNGConfig>
     }
 
     return response.results.map((result) => {
-      let domain;
-      try {
-        domain = new URL(result.url).hostname;
-      } catch {
-        domain = undefined;
-      }
-
       return {
         url: result.url,
         title: result.title,
         snippet: result.content,
-        domain,
+        domain: extractDomain(result.url),
         publishedDate: result.publishedDate || undefined,
         provider: 'searxng',
         raw: result,

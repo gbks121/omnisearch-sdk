@@ -1,8 +1,14 @@
-import { ResultAsync } from 'neverthrow';
+import { ResultAsync, ok, type Result } from 'neverthrow';
 import pRetry, { AbortError } from 'p-retry';
 import pTimeout from 'p-timeout';
 import pThrottle from 'p-throttle';
-import { SearchOptions, SearchResult, SearchProvider, ProviderConfig } from '../types';
+import {
+  SearchOptions,
+  SearchResult,
+  SearchProvider,
+  ProviderConfig,
+  SearchResultSchema,
+} from '../types';
 import { HttpError } from '../utils/http';
 import { debug } from '../utils/debug';
 
@@ -24,6 +30,10 @@ export abstract class AbstractSearchProvider<
   public abstract readonly name: string;
   public readonly config: TConfig;
   private throttledSearch?: (options: TOptions) => Promise<SearchResult[]>;
+
+  protected get displayName(): string {
+    return this.name.charAt(0).toUpperCase() + this.name.slice(1);
+  }
 
   constructor(config: TConfig) {
     this.config = config;
@@ -100,9 +110,11 @@ export abstract class AbstractSearchProvider<
         }
       );
 
+    const debugOpts = options.debug;
+
     return ResultAsync.fromPromise(runWithResilience(), (error: unknown) => {
       return this.standardizeError(error);
-    });
+    }).andThen((results) => this.validateResults(results, debugOpts));
   }
 
   private getThrottledSearch(): (options: TOptions) => Promise<SearchResult[]> {
@@ -120,6 +132,42 @@ export abstract class AbstractSearchProvider<
     }
 
     return internalSearch;
+  }
+
+  private validateResults(
+    results: SearchResult[],
+    debugOpts: SearchOptions['debug']
+  ): Result<SearchResult[], Error> {
+    if (results.length === 0) {
+      return ok(results);
+    }
+
+    const validated: SearchResult[] = [];
+    for (let i = 0; i < results.length; i++) {
+      const parsed = SearchResultSchema.safeParse(results[i]);
+      if (parsed.success) {
+        validated.push(parsed.data);
+      } else {
+        console.warn(
+          `[@omnisearch] Provider ${this.name} returned invalid result at index ${i}: ${parsed.error.message}`,
+          { issues: parsed.error.issues }
+        );
+      }
+    }
+
+    if (validated.length < results.length) {
+      debug.log(
+        debugOpts,
+        `Provider ${this.name}: ${results.length - validated.length} of ${results.length} results dropped due to validation failures`,
+        {
+          total: results.length,
+          dropped: results.length - validated.length,
+          kept: validated.length,
+        }
+      );
+    }
+
+    return ok(validated);
   }
 
   private standardizeError(error: unknown): Error {
@@ -177,22 +225,7 @@ export abstract class AbstractSearchProvider<
       }
     }
 
-    const displayNames: Record<string, string> = {
-      serpapi: 'SerpAPI',
-      duckduckgo: 'DuckDuckGo',
-      searxng: 'SearXNG',
-      arxiv: 'Arxiv',
-      google: 'Google',
-      brave: 'Brave',
-      exa: 'Exa',
-      perplexity: 'Perplexity',
-      parallel: 'Parallel',
-      tavily: 'Tavily',
-    };
-
-    const displayName =
-      displayNames[this.name.toLowerCase()] ||
-      this.name.charAt(0).toUpperCase() + this.name.slice(1);
+    const displayName = this.displayName;
     let detailedMessage = `${displayName} search failed: ${errorMessage}`;
 
     if (troubleshooting) {

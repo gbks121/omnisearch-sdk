@@ -27,31 +27,42 @@ const sampleResults: SearchResult[] = [
 ];
 
 describe('webSearch', () => {
-  it('throws if no provider is provided', async () => {
-    await expect(webSearch({ provider: [], query: 'test' })).rejects.toThrow(
-      'At least one search provider is required'
-    );
+  it('returns err if no provider is provided', async () => {
+    const result = await webSearch({ provider: [], query: 'test' });
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.message).toBe('At least one search provider is required');
+    }
   });
 
-  it('returns empty array if providers return empty', async () => {
+  it('returns ok with empty array if providers return empty', async () => {
     const provider = makeProvider('google', []);
-    const results = await webSearch({ provider: [provider], query: 'test' });
-    expect(results).toEqual([]);
+    const result = await webSearch({ provider: [provider], query: 'test' });
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value).toEqual([]);
+    }
   });
 
   it('allows search without query if arxiv provider with idList', async () => {
     const arxivProvider = makeProvider('arxiv', sampleResults);
-    const results = await webSearch({
+    const result = await webSearch({
       provider: [arxivProvider],
       idList: '2305.02392',
     });
-    expect(results).toEqual(sampleResults);
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value).toEqual(sampleResults);
+    }
   });
 
   it('returns results from a single provider', async () => {
     const provider = makeProvider('google', sampleResults);
-    const results = await webSearch({ provider: [provider], query: 'test' });
-    expect(results).toEqual(sampleResults);
+    const result = await webSearch({ provider: [provider], query: 'test' });
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value).toEqual(sampleResults);
+    }
     expect(provider.search).toHaveBeenCalledWith(expect.objectContaining({ query: 'test' }));
   });
 
@@ -61,10 +72,13 @@ describe('webSearch', () => {
     const provider1 = makeProvider('google', results1);
     const provider2 = makeProvider('brave', results2);
 
-    const results = await webSearch({ provider: [provider1, provider2], query: 'test' });
-    expect(results).toHaveLength(2);
-    expect(results).toContainEqual(results1[0]);
-    expect(results).toContainEqual(results2[0]);
+    const result = await webSearch({ provider: [provider1, provider2], query: 'test' });
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value).toHaveLength(2);
+      expect(result.value).toContainEqual(results1[0]);
+      expect(result.value).toContainEqual(results2[0]);
+    }
   });
 
   it('continues if one provider fails (fail-soft)', async () => {
@@ -74,17 +88,22 @@ describe('webSearch', () => {
     const goodProvider = makeProvider('google', goodResults);
     const badProvider = makeProvider('brave', [], true);
 
-    const results = await webSearch({ provider: [goodProvider, badProvider], query: 'test' });
-    expect(results).toEqual(goodResults);
+    const result = await webSearch({ provider: [goodProvider, badProvider], query: 'test' });
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value).toEqual(goodResults);
+    }
   });
 
-  it('throws if ALL providers fail', async () => {
+  it('returns err if ALL providers fail', async () => {
     const provider1 = makeProvider('google', [], true);
     const provider2 = makeProvider('brave', [], true);
 
-    await expect(webSearch({ provider: [provider1, provider2], query: 'test' })).rejects.toThrow(
-      'All 2 provider(s) failed'
-    );
+    const result = await webSearch({ provider: [provider1, provider2], query: 'test' });
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.message).toContain('All 2 provider(s) failed');
+    }
   });
 
   it('includes provider name in error message when provider fails', async () => {
@@ -94,9 +113,11 @@ describe('webSearch', () => {
       true,
       new Error("Search with provider 'google' failed")
     );
-    await expect(webSearch({ provider: [badProvider], query: 'test' })).rejects.toThrow(
-      "Search with provider 'google' failed"
-    );
+    const result = await webSearch({ provider: [badProvider], query: 'test' });
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.message).toContain("Search with provider 'google' failed");
+    }
   });
 
   it('passes searchOptions to providers (minus provider and debug fields)', async () => {
@@ -141,20 +162,22 @@ describe('webSearch', () => {
 
   it('returns empty array when provider returns empty results', async () => {
     const provider = makeProvider('google', []);
-    const results = await webSearch({ provider: [provider], query: 'test' });
-    expect(results).toEqual([]);
+    const result = await webSearch({ provider: [provider], query: 'test' });
+    expect(result.isOk()).toBe(true);
+    if (result.isOk()) {
+      expect(result.value).toEqual([]);
+    }
   });
 
   it('includes all error messages when all providers fail', async () => {
     const p1 = makeProvider('google', [], true, new Error('google error'));
     const p2 = makeProvider('brave', [], true, new Error('brave error'));
 
-    try {
-      await webSearch({ provider: [p1, p2], query: 'test' });
-    } catch (e) {
-      const message = (e as Error).message;
-      expect(message).toContain('google error');
-      expect(message).toContain('brave error');
+    const result = await webSearch({ provider: [p1, p2], query: 'test' });
+    expect(result.isErr()).toBe(true);
+    if (result.isErr()) {
+      expect(result.error.message).toContain('google error');
+      expect(result.error.message).toContain('brave error');
     }
   });
 });

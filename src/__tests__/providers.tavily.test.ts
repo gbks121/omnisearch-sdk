@@ -327,7 +327,7 @@ describe('createTavilyProvider', () => {
     const result = await provider.search({ query: 'test', retries: 0 });
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
-      expect(result.value[0].domain).toBeUndefined();
+      expect(result.value).toEqual([]);
     }
   });
 });

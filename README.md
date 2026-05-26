@@ -10,7 +10,7 @@ Inspired by [PlustOrg/search-sdk](https://github.com/PlustOrg/search-sdk), this 
 - **Smart Retries**: Integrated exponential backoff via [`p-retry`](https://github.com/sindresorhus/p-retry) for 429 (Rate Limit) and 5xx errors.
 - **Deadlines & Throttling**: Hard timeouts per request via [`p-timeout`](https://github.com/sindresorhus/p-timeout) and proactive rate limiting with [`p-throttle`](https://github.com/sindresorhus/p-throttle).
 - **Strict Validation**: Type safety with Zod for all provider responses.
-- **Modern ESM**: First-class support for ES Modules and Node 24+.
+- **Modern ESM**: First-class support for ES Modules and Node 20+.
 - **Standardized Architecture**: All providers share a common factory, ensuring consistent behavior and troubleshooting.
 
 ## 🚀 Quick Start
@@ -35,20 +35,19 @@ const google = createGoogleProvider({ apiKey: 'YOUR_API_KEY', cx: 'YOUR_CX' });
 const brave = createBraveProvider({ apiKey: 'YOUR_API_KEY' });
 
 async function search() {
-  try {
-    const results = await webSearch({
-      query: 'TypeScript functional programming',
-      provider: [google, brave],
-      maxResults: 10,
-    });
+  const result = await webSearch({
+    query: 'TypeScript functional programming',
+    provider: [google, brave],
+    maxResults: 10,
+  });
 
-    // Results is an array of SearchResult objects
-    results.forEach((res) => {
+  if (result.isOk()) {
+    result.value.forEach((res) => {
       console.log(`[${res.provider}] ${res.title} - ${res.url}`);
     });
-  } catch (error) {
-    // webSearch throws if ALL providers fail
-    console.error('Search failed:', error.message);
+  } else {
+    // webSearch returns an error if ALL providers fail
+    console.error('Search failed:', result.error.message);
   }
 }
 ```

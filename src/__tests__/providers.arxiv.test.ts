@@ -220,8 +220,9 @@ describe('createArxivProvider', () => {
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
       const results = result.value;
-      // First entry has 2 authors
-      expect((results[0] as { authors?: string[] }).authors).toEqual(['John Doe', 'Jane Smith']);
+      const raw = results[0].raw as Record<string, unknown>;
+      const authors = ((raw.author ?? []) as Array<{ name: string }>).map((a) => a.name);
+      expect(authors).toEqual(['John Doe', 'Jane Smith']);
     }
   });
 
@@ -232,8 +233,9 @@ describe('createArxivProvider', () => {
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
       const results = result.value;
-      // Second entry has single author array
-      expect((results[1] as { authors?: string[] }).authors).toEqual(['Bob Johnson']);
+      const raw = results[1].raw as Record<string, unknown>;
+      const authors = ((raw.author ?? []) as Array<{ name: string }>).map((a) => a.name);
+      expect(authors).toEqual(['Bob Johnson']);
     }
   });
 
@@ -244,8 +246,9 @@ describe('createArxivProvider', () => {
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
       const results = result.value;
-      // Second entry has 2 categories
-      expect((results[1] as { categories?: string[] }).categories).toEqual(['cs.LG', 'stat.ML']);
+      const raw = results[1].raw as Record<string, unknown>;
+      const categories = ((raw.category ?? []) as Array<{ term: string }>).map((c) => c.term);
+      expect(categories).toEqual(['cs.LG', 'stat.ML']);
     }
   });
 
@@ -256,7 +259,9 @@ describe('createArxivProvider', () => {
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
       const results = result.value;
-      expect((results[0] as { categories?: string[] }).categories).toEqual(['cs.AI']);
+      const raw = results[0].raw as Record<string, unknown>;
+      const categories = ((raw.category ?? []) as Array<{ term: string }>).map((c) => c.term);
+      expect(categories).toEqual(['cs.AI']);
     }
   });
 

@@ -1,5 +1,5 @@
 import { SearchOptions, SearchResult, ProviderConfig } from '../types';
-import { post } from '../utils';
+import { post, extractDomain, clampMaxResults } from '../utils';
 import { debug } from '../utils/debug';
 import { AbstractSearchProvider } from './base';
 
@@ -102,10 +102,12 @@ export class TavilySearchProvider extends AbstractSearchProvider<TavilyConfig> {
       throw new Error('Tavily search requires a query.');
     }
 
+    const clampedMaxResults = clampMaxResults(maxResults);
+
     const requestBody: TavilyRequestBody = {
       api_key: this.config.apiKey || '',
       query: query.trim(),
-      limit: maxResults,
+      limit: clampedMaxResults,
       include_answer: this.config.includeAnswer || false,
       search_depth: this.config.searchDepth || 'basic',
       sort_by: this.config.sortBy || 'relevance',
@@ -152,18 +154,11 @@ export class TavilySearchProvider extends AbstractSearchProvider<TavilyConfig> {
     }
 
     return response.results.map((result) => {
-      let domain;
-      try {
-        domain = new URL(result.url).hostname;
-      } catch {
-        domain = undefined;
-      }
-
       return {
         url: result.url,
         title: result.title,
         snippet: result.content,
-        domain,
+        domain: extractDomain(result.url),
         publishedDate: result.published_date,
         provider: 'tavily',
         raw: result,

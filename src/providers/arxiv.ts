@@ -1,4 +1,4 @@
-import { debug, get } from '../utils';
+import { debug, get, clampMaxResults } from '../utils';
 import { SearchResult, SearchOptions, ProviderConfig } from '../types';
 import { XMLParser } from 'fast-xml-parser';
 import { AbstractSearchProvider } from './base';
@@ -77,7 +77,7 @@ export interface ArxivSearchOptions extends SearchOptions {
 /**
  * Default base URL for Arxiv API
  */
-const DEFAULT_BASE_URL = 'http://export.arxiv.org/api/query';
+const DEFAULT_BASE_URL = 'https://export.arxiv.org/api/query';
 
 /**
  * Shared XMLParser instance configured for Arxiv Atom feeds.
@@ -134,6 +134,8 @@ export class ArxivSearchProvider extends AbstractSearchProvider<ArxivConfig, Arx
       throw new Error('Arxiv search requires either a "query" or an "idList".');
     }
 
+    const clampedMaxResults = clampMaxResults(maxResults);
+
     const params = new URLSearchParams();
     if (query) {
       params.append('search_query', query);
@@ -142,7 +144,7 @@ export class ArxivSearchProvider extends AbstractSearchProvider<ArxivConfig, Arx
       params.append('id_list', idList);
     }
     params.append('start', start.toString());
-    params.append('max_results', maxResults.toString());
+    params.append('max_results', clampedMaxResults.toString());
     params.append('sortBy', sortBy);
     params.append('sortOrder', sortOrder);
 
@@ -188,9 +190,6 @@ export class ArxivSearchProvider extends AbstractSearchProvider<ArxivConfig, Arx
         pdfLink = alternateLink.href.replace('/abs/', '/pdf/');
       }
 
-      const authors = (entry.author ?? []).map((a) => a.name).filter(Boolean);
-      const categories = (entry.category ?? []).map((c) => c.term).filter(Boolean);
-
       return {
         url: pdfLink || entry.id,
         title: entry.title.replace(/\n\s*/g, ' ').trim(),
@@ -198,8 +197,6 @@ export class ArxivSearchProvider extends AbstractSearchProvider<ArxivConfig, Arx
         publishedDate: entry.published || entry.updated,
         provider: 'arxiv',
         raw: entry,
-        authors,
-        categories,
       };
     });
 

@@ -19,6 +19,20 @@ function skipIfNo(key: string) {
   return env(key) ? it : it.skip;
 }
 
+function printResults(
+  name: string,
+  results: { title?: string; url?: string; snippet?: string; domain?: string }[]
+) {
+  console.log(`\n[${name}] ${results.length} result(s):`);
+  for (const r of results) {
+    console.log(`  - ${r.title}`);
+    if (r.url) console.log(`    ${r.url}`);
+    if (r.snippet)
+      console.log(`    "${r.snippet.slice(0, 120)}${r.snippet.length > 120 ? '...' : ''}"`);
+    if (r.domain) console.log(`    domain: ${r.domain}`);
+  }
+}
+
 describe('integration: real provider calls', () => {
   const QUERY = 'TypeScript neverthrow';
 
@@ -31,7 +45,7 @@ describe('integration: real provider calls', () => {
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
       expect(result.value.length).toBeGreaterThan(0);
-      console.log('[Google]', result.value[0]?.title);
+      printResults('Google', result.value);
     }
   });
 
@@ -41,7 +55,7 @@ describe('integration: real provider calls', () => {
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
       expect(result.value.length).toBeGreaterThan(0);
-      console.log('[Brave]', result.value[0]?.title);
+      printResults('Brave', result.value);
     }
   });
 
@@ -51,7 +65,7 @@ describe('integration: real provider calls', () => {
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
       expect(result.value.length).toBeGreaterThan(0);
-      console.log('[Exa]', result.value[0]?.title);
+      printResults('Exa', result.value);
     }
   });
 
@@ -61,7 +75,7 @@ describe('integration: real provider calls', () => {
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
       expect(result.value.length).toBeGreaterThan(0);
-      console.log('[Tavily]', result.value[0]?.title);
+      printResults('Tavily', result.value);
     }
   });
 
@@ -71,7 +85,7 @@ describe('integration: real provider calls', () => {
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
       expect(result.value.length).toBeGreaterThan(0);
-      console.log('[SerpAPI]', result.value[0]?.title);
+      printResults('SerpAPI', result.value);
     }
   });
 
@@ -81,7 +95,7 @@ describe('integration: real provider calls', () => {
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
       expect(result.value.length).toBeGreaterThan(0);
-      console.log('[Perplexity]', result.value[0]?.title);
+      printResults('Perplexity', result.value);
     }
   });
 
@@ -102,6 +116,7 @@ describe('integration: real provider calls', () => {
     if (result.isOk()) {
       expect(result.value.length).toBeGreaterThan(0);
       console.log('[Arxiv]', result.value[0]?.title);
+      console.log('[Arxiv]', result.value[0]?.snippet);
     }
   });
 

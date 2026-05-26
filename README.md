@@ -184,8 +184,12 @@ const results = await webSearch({
 # Install dependencies
 pnpm install
 
-# Run tests
+# Run unit tests
 pnpm test
+
+# Run integration tests (real API calls)
+cp .env.example .env   # then edit .env with your API keys
+pnpm test -- --run integration
 
 # Build for distribution (CJS, ESM, DTS)
 pnpm run build

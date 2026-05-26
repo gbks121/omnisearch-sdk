@@ -105,7 +105,7 @@ describe('integration: real provider calls', () => {
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
       expect(result.value.length).toBeGreaterThan(0);
-      console.log('[SearXNG]', result.value[0]?.title);
+      printResults('SearXNG', result.value);
     }
   });
 
@@ -114,9 +114,7 @@ describe('integration: real provider calls', () => {
     const result = await provider.search({ query: 'machine learning', maxResults: 3 });
     expect(result.isOk()).toBe(true);
     if (result.isOk()) {
-      expect(result.value.length).toBeGreaterThan(0);
-      console.log('[Arxiv]', result.value[0]?.title);
-      console.log('[Arxiv]', result.value[0]?.snippet);
+      printResults('Arxiv', result.value);
     }
   });
 

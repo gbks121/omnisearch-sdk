@@ -1,7 +1,7 @@
 import { SearchOptions, SearchProvider, SearchResult, ProviderConfig } from '../types';
-import { get, createBaseProvider } from '../utils';
+import { get } from '../utils';
 import { debug } from '../utils/debug';
-import { err } from 'neverthrow';
+import { AbstractSearchProvider } from './base';
 
 /**
  * SearXNG API response types
@@ -39,164 +39,127 @@ export interface SearXNGConfig extends ProviderConfig {
   additionalParams?: Record<string, string>;
 }
 
-/**
- * Creates a SearXNG provider instance
- *
- * @param config Configuration options for SearXNG
- * @returns A configured SearXNG provider
- */
-export function createSearXNGProvider(config: SearXNGConfig): SearchProvider {
-  if (!config.baseUrl) {
-    throw new Error('SearXNG requires a base URL');
+export class SearXNGSearchProvider extends AbstractSearchProvider<SearXNGConfig> {
+  public readonly name = 'searxng';
+
+  constructor(config: SearXNGConfig) {
+    if (!config.baseUrl) {
+      throw new Error('SearXNG requires a base URL');
+    }
+    super(config);
   }
 
-  return createBaseProvider({
-    name: 'searxng',
-    config,
-    getTroubleshooting: (error: Error, statusCode?: number) => {
-      if (error.message.includes('not found') || statusCode === 404) {
-        return 'Check if your SearXNG instance URL is correct and that the server is running. Verify the format of your search URL.';
-      }
-      if (statusCode === 401 || statusCode === 403) {
-        return "Authentication failed or Access denied. Check your apiKey and make sure it's valid and has the correct permissions.";
-      }
-      if (statusCode === 400) {
-        return 'Bad request. This is likely due to invalid request parameters. Check your query and other search options.';
-      }
-      if (statusCode === 429) {
-        return "Rate limit exceeded. You've exceeded the rate limit for this API. Try again later or reduce your request frequency.";
-      }
-      if (statusCode && statusCode >= 500) {
-        return 'Server error. The search provider is experiencing issues. Try again later.';
-      }
-      return '';
-    },
-    search: async (options: SearchOptions): Promise<SearchResult[]> => {
-      const { query, maxResults = 10, language, safeSearch, timeout, debug: debugOptions } = options;
+  protected getTroubleshooting(error: Error, statusCode?: number): string {
+    if (error.message.includes('not found') || statusCode === 404) {
+      return 'Check if your SearXNG instance URL is correct and that the server is running. Verify the format of your search URL.'; 
+    }
+    if (statusCode === 401 || statusCode === 403) {
+      return "Authentication failed or Access denied. Check your apiKey and make sure it's valid and has the correct permissions."; 
+    }
+    if (statusCode === 400) {
+      return 'Bad request. This is likely due to invalid request parameters. Check your query and other search options.';
+    }
+    if (statusCode === 429) {
+      return "Rate limit exceeded. You've exceeded the rate limit for this API. Try again later or reduce your request frequency."; 
+    }
+    if (statusCode && statusCode >= 500) {
+      return 'Server error. The search provider is experiencing issues. Try again later.';
+    }
+    return '';
+  }
 
-      if (!query || !query.trim()) {
-        throw new Error('SearXNG search requires a query.');
-      }
+  protected async doSearch(options: SearchOptions): Promise<SearchResult[]> {
+    const { query, maxResults = 10, language, safeSearch, timeout, debug: debugOptions } = options;
 
-      // Build query parameters
-      const searchUrl = new URL(config.baseUrl);
-      searchUrl.searchParams.append('q', query.trim());
-      searchUrl.searchParams.append('format', 'json');
+    if (!query || !query.trim()) {
+      throw new Error('SearXNG search requires a query.');
+    }
 
-      if (maxResults) {
-        searchUrl.searchParams.append('count', maxResults.toString());
-      }
+    const searchUrl = new URL(this.config.baseUrl);
+    searchUrl.searchParams.append('q', query.trim());
+    searchUrl.searchParams.append('format', 'json');
 
-      if (language) {
-        searchUrl.searchParams.append('language', language);
-      }
+    if (maxResults) {
+      searchUrl.searchParams.append('count', maxResults.toString());
+    }
 
-      // Map safe search (0=off, 1=moderate, 2=strict)
-      if (safeSearch) {
-        const safeValue = safeSearch === 'off' ? '0' : safeSearch === 'moderate' ? '1' : '2';
-        searchUrl.searchParams.append('safesearch', safeValue);
-      }
+    if (language) {
+      searchUrl.searchParams.append('language', language);
+    }
 
-      // Add any additional parameters
-      if (config.additionalParams) {
-        Object.entries(config.additionalParams).forEach(([key, value]) => {
-          searchUrl.searchParams.append(key, value);
-        });
-      }
+    if (safeSearch) {
+      const safeValue = safeSearch === 'off' ? '0' : safeSearch === 'moderate' ? '1' : '2';
+      searchUrl.searchParams.append('safesearch', safeValue);
+    }
 
-      // Add API key if provided (some instances require it)
-      if (config.apiKey) {
-        searchUrl.searchParams.append('api_key', config.apiKey);
-      }
-
-      // Log request details if debugging is enabled
-      debug.logRequest(debugOptions, 'SearXNG Search request', {
-        url: searchUrl.toString().replace(/api_key=([^&]*)/, 'api_key=***'),
-        params: {
-          q: query,
-          count: maxResults,
-          language,
-          safesearch: safeSearch
-            ? safeSearch === 'off'
-              ? '0'
-              : safeSearch === 'moderate'
-                ? '1'
-                : '2'
-            : undefined,
-          ...config.additionalParams,
-        },
+    if (this.config.additionalParams) {
+      Object.entries(this.config.additionalParams).forEach(([key, value]) => {
+        searchUrl.searchParams.append(key, value);
       });
+    }
 
-      const result = await get<SearXNGResponse>(searchUrl.toString(), {
-        timeout,
-      });
-      if (result.isErr()) throw result.error;
-      const response = result.value;
+    if (this.config.apiKey) {
+      searchUrl.searchParams.append('api_key', this.config.apiKey);
+    }
 
-      // Log response if debugging is enabled
-      debug.logResponse(debugOptions, 'SearXNG Search raw response', {
-        status: 'success',
-        itemCount: response.results?.length || 0,
-        totalResults: response.number_of_results || 0,
-        query: response.query,
-      });
+    debug.logRequest(debugOptions, 'SearXNG Search request', {
+      url: searchUrl.toString().replace(/api_key=([^&]*)/, 'api_key=***'),
+      params: {
+        q: query,
+        count: maxResults,
+        language,
+        safesearch: safeSearch
+          ? safeSearch === 'off'
+            ? '0'
+            : safeSearch === 'moderate'
+              ? '1'
+              : '2'
+          : undefined,
+        ...this.config.additionalParams,
+      },
+    });
 
-      if (!response.results || response.results.length === 0) {
-        debug.log(debugOptions, 'SearXNG Search returned no results');
-        return [];
+    const result = await get<SearXNGResponse>(searchUrl.toString(), {
+      timeout,
+    });
+    if (result.isErr()) throw result.error;
+    const response = result.value;
+
+    debug.logResponse(debugOptions, 'SearXNG Search raw response', {
+      status: 'success',
+      itemCount: response.results?.length || 0,
+      totalResults: response.number_of_results || 0,
+      query: response.query,
+    });
+
+    if (!response.results || response.results.length === 0) {
+      return [];
+    }
+
+    return response.results.map((result) => {
+      let domain;
+      try {
+        domain = new URL(result.url).hostname;
+      } catch {
+        domain = undefined;
       }
 
-      // Transform SearXNG response to standard SearchResult format
-      return response.results.map((result) => {
-        // Extract domain from URL
-        let domain;
-        try {
-          domain = new URL(result.url).hostname;
-        } catch {
-          domain = undefined;
-        }
-
-        return {
-          url: result.url,
-          title: result.title,
-          snippet: result.content,
-          domain,
-          publishedDate: result.publishedDate || undefined,
-          provider: 'searxng',
-          raw: result,
-        };
-      });
-    },
-  });
+      return {
+        url: result.url,
+        title: result.title,
+        snippet: result.content,
+        domain,
+        publishedDate: result.publishedDate || undefined,
+        provider: 'searxng',
+        raw: result,
+      };
+    });
+  }
 }
 
 /**
- * Alias for createSearXNGProvider for backward compatibility
+ * Creates a SearXNG search provider instance
  */
-export const createSearxNGProvider = createSearXNGProvider;
-
-/**
- * Pre-configured SearXNG provider
- * Note: You must call configure before using this provider
- */
-export const searxng = {
-  name: 'searxng',
-  config: { baseUrl: '', apiKey: '' },
-
-  /**
-   * Configure the SearXNG provider with your instance URL and optional API key
-   *
-   * @param config SearXNG configuration
-   * @returns Configured SearXNG provider
-   */
-  configure: (config: SearXNGConfig) => createSearXNGProvider(config),
-
-  /**
-   * Search implementation that ensures provider is properly configured before use
-   */
-  search: async (_options: SearchOptions) => {
-    return err(
-      new Error('SearXNG provider must be configured before use. Call searxng.configure() first.')
-    );
-  },
-};
+export function createSearXNGProvider(config: SearXNGConfig): SearXNGSearchProvider {
+  return new SearXNGSearchProvider(config);
+}

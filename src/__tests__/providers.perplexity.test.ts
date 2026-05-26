@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createPerplexityProvider, perplexity } from '../providers/perplexity';
+import { createPerplexityProvider } from '../providers/perplexity';
 
 function mockFetch(status: number, body: unknown, statusText = 'OK'): void {
   const bodyStr = JSON.stringify(body);
@@ -379,24 +379,5 @@ describe('createPerplexityProvider', () => {
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('string error');
     }
-  });
-});
-
-describe('perplexity singleton', () => {
-  it('has correct name', () => {
-    expect(perplexity.name).toBe('perplexity');
-  });
-
-  it('returns error when search is called without configure', async () => {
-    const result = await perplexity.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message.toLowerCase()).toContain('provider must be configured before use');
-    }
-  });
-
-  it('configure returns a working provider', () => {
-    const provider = perplexity.configure({ apiKey: 'test-key' });
-    expect(provider.name).toBe('perplexity');
   });
 });

@@ -1,7 +1,7 @@
-import { err } from 'neverthrow';
 import { SearchOptions, SearchProvider, SearchResult, ProviderConfig } from '../types';
-import { get, createBaseProvider } from '../utils';
+import { get } from '../utils';
 import { debug } from '../utils/debug';
+import { AbstractSearchProvider } from './base';
 
 /**
  * Brave Search API response types
@@ -85,6 +85,155 @@ const DEFAULT_BASE_URLS = {
   news: 'https://api.search.brave.com/res/v1/news/search',
 };
 
+export class BraveSearchProvider extends AbstractSearchProvider<BraveSearchConfig> {
+  public readonly name = 'brave';
+
+  constructor(config: BraveSearchConfig) {
+    if (!config.apiKey) {
+      throw new Error('Brave Search requires an API key');
+    }
+    super({
+      ...config,
+      searchType: config.searchType || 'web',
+    });
+  }
+
+  protected getTroubleshooting(error: Error, statusCode?: number): string {
+    if (error.message.includes('token')) {
+      return 'Authentication failed. Ensure your Brave Search API token is valid. Check your subscription status in the Brave Developer Hub.';
+    }
+    if (statusCode === 401 || statusCode === 403) {
+      return "Authentication failed or Access denied. Check your apiKey and make sure it's valid and has the correct permissions.";
+    }
+    if (statusCode === 400) {
+      return 'Bad request. This is likely due to invalid request parameters. Check your query and other search options.';
+    }
+    if (statusCode === 429) {
+      return "Rate limit exceeded. You've exceeded the rate limit for this API. Try again later or reduce your request frequency.";
+    }
+    if (statusCode && statusCode >= 500) {
+      return 'Server error. The search provider is experiencing issues. Try again later.';
+    }
+    return '';
+  }
+
+  protected async doSearch(options: SearchOptions): Promise<SearchResult[]> {
+    const {
+      query,
+      maxResults = 10,
+      page = 1,
+      language,
+      region,
+      safeSearch,
+      timeout,
+      debug: debugOptions,
+    } = options;
+
+    const searchType = this.config.searchType || 'web';
+    const baseUrl = this.config.baseUrl || DEFAULT_BASE_URLS[searchType];
+
+    // Calculate offset for pagination
+    const offset = (page - 1) * maxResults;
+
+    // Build query parameters
+    if (!query || !query.trim()) {
+      throw new Error('Brave search requires a query.');
+    }
+
+    const searchUrl = new URL(baseUrl);
+    searchUrl.searchParams.append('q', query);
+    searchUrl.searchParams.append('count', maxResults.toString());
+
+    if (offset > 0) {
+      searchUrl.searchParams.append('offset', offset.toString());
+    }
+
+    // Add language and region if available
+    if (language) {
+      searchUrl.searchParams.append('search_lang', language);
+    }
+
+    if (region) {
+      searchUrl.searchParams.append('country', region);
+    }
+
+    // Map safe search setting (off, moderate, strict)
+    if (safeSearch) {
+      searchUrl.searchParams.append('safesearch', safeSearch);
+    }
+
+    // Set up headers with API token
+    const headers = {
+      Accept: 'application/json',
+      'X-Subscription-Token': this.config.apiKey || '',
+    };
+
+    // Log request details if debugging is enabled
+    debug.logRequest(debugOptions, 'Brave Search request', {
+      url: searchUrl.toString(),
+      params: {
+        q: query,
+        count: maxResults,
+        offset,
+        search_lang: language,
+        country: region,
+        safesearch: safeSearch,
+      },
+    });
+
+    const result = await get<BraveSearchResponse>(searchUrl.toString(), {
+      headers,
+      timeout,
+    });
+    if (result.isErr()) throw result.error;
+    const response = result.value;
+
+    // Use results based on search type
+    const results =
+      searchType === 'web'
+        ? response.web?.results || []
+        : searchType === 'news'
+          ? response.results || []
+          : response.web?.results || [];
+
+    // Log response if debugging is enabled
+    debug.logResponse(debugOptions, 'Brave Search raw response', {
+      status: 'success',
+      itemCount: results?.length || 0,
+      totalCount: response.count || 0,
+      queryInfo: response.query,
+      searchType,
+      rawResponse: response,
+    });
+
+    if (results.length === 0) {
+      debug.log(debugOptions, 'Brave Search returned no results');
+      return [];
+    }
+
+    // Transform Brave response to standard SearchResult format
+    return results.map((item) => {
+      // Extract domain from URL
+      let domain;
+      try {
+        domain = new URL(item.url).hostname;
+      } catch {
+        domain = undefined;
+      }
+
+      return {
+        url: item.url,
+        title: item.title,
+        snippet: item.description,
+        domain,
+        publishedDate: item.age,
+        provider: 'brave',
+        raw: item,
+      };
+    });
+  }
+}
+
 /**
  * Creates a Brave Search provider instance
  *
@@ -92,171 +241,5 @@ const DEFAULT_BASE_URLS = {
  * @returns A configured Brave Search provider
  */
 export function createBraveProvider(config: BraveSearchConfig): SearchProvider {
-  if (!config.apiKey) {
-    throw new Error('Brave Search requires an API key');
-  }
-
-  const searchType = config.searchType || 'web';
-  const baseUrl = config.baseUrl || DEFAULT_BASE_URLS[searchType];
-
-  return createBaseProvider({
-    name: 'brave',
-    config: { ...config, searchType },
-    getTroubleshooting: (error: Error, statusCode?: number) => {
-      if (error.message.includes('token')) {
-        return 'Authentication failed. Ensure your Brave Search API token is valid. Check your subscription status in the Brave Developer Hub.';
-      }
-      if (statusCode === 401 || statusCode === 403) {
-        return "Authentication failed or Access denied. Check your apiKey and make sure it's valid and has the correct permissions.";
-      }
-      if (statusCode === 400) {
-        return 'Bad request. This is likely due to invalid request parameters. Check your query and other search options.';
-      }
-      if (statusCode === 429) {
-        return "Rate limit exceeded. You've exceeded the rate limit for this API. Try again later or reduce your request frequency.";
-      }
-      if (statusCode && statusCode >= 500) {
-        return 'Server error. The search provider is experiencing issues. Try again later.';
-      }
-      return '';
-    },
-    search: async (options: SearchOptions): Promise<SearchResult[]> => {
-      const {
-        query,
-        maxResults = 10,
-        page = 1,
-        language,
-        region,
-        safeSearch,
-        timeout,
-        debug: debugOptions,
-      } = options;
-
-      // Calculate offset for pagination
-      const offset = (page - 1) * maxResults;
-
-      // Build query parameters
-      if (!query || !query.trim()) {
-        throw new Error('Brave search requires a query.');
-      }
-
-      const searchUrl = new URL(baseUrl);
-      searchUrl.searchParams.append('q', query);
-      searchUrl.searchParams.append('count', maxResults.toString());
-
-      if (offset > 0) {
-        searchUrl.searchParams.append('offset', offset.toString());
-      }
-
-      // Add language and region if available
-      if (language) {
-        searchUrl.searchParams.append('search_lang', language);
-      }
-
-      if (region) {
-        searchUrl.searchParams.append('country', region);
-      }
-
-      // Map safe search setting (off, moderate, strict)
-      if (safeSearch) {
-        searchUrl.searchParams.append('safesearch', safeSearch);
-      }
-
-      // Set up headers with API token
-      const headers = {
-        Accept: 'application/json',
-        'X-Subscription-Token': config.apiKey || '',
-      };
-
-      // Log request details if debugging is enabled
-      debug.logRequest(debugOptions, 'Brave Search request', {
-        url: searchUrl.toString(),
-        params: {
-          q: query,
-          count: maxResults,
-          offset,
-          search_lang: language,
-          country: region,
-          safesearch: safeSearch,
-        },
-      });
-
-      const result = await get<BraveSearchResponse>(searchUrl.toString(), {
-        headers,
-        timeout,
-      });
-      if (result.isErr()) throw result.error;
-      const response = result.value;
-
-      // Use results based on search type
-      const results =
-        searchType === 'web'
-          ? response.web?.results || []
-          : searchType === 'news'
-            ? response.results || []
-            : response.web?.results || [];
-
-      // Log response if debugging is enabled
-      debug.logResponse(debugOptions, 'Brave Search raw response', {
-        status: 'success',
-        itemCount: results?.length || 0,
-        totalCount: response.count || 0,
-        queryInfo: response.query,
-        searchType,
-        rawResponse: response,
-      });
-
-      if (results.length === 0) {
-        debug.log(debugOptions, 'Brave Search returned no results');
-        return [];
-      }
-
-      // Transform Brave response to standard SearchResult format
-      return results.map((item) => {
-        // Extract domain from URL
-        let domain;
-        try {
-          domain = new URL(item.url).hostname;
-        } catch {
-          domain = undefined;
-        }
-
-        return {
-          url: item.url,
-          title: item.title,
-          snippet: item.description,
-          domain,
-          publishedDate: item.age,
-          provider: 'brave',
-          raw: item,
-        };
-      });
-    },
-  });
+  return new BraveSearchProvider(config);
 }
-
-/**
- * Pre-configured Brave Search provider
- * Note: You must call configure before using this provider
- */
-export const brave = {
-  name: 'brave',
-  config: { apiKey: '' },
-
-  /**
-   * Configure the Brave Search provider with your API credentials
-   *
-   * @param config Brave Search configuration
-   * @returns Configured Brave Search provider
-   */
-  configure: (config: BraveSearchConfig) => createBraveProvider(config),
-
-  /**
-   * Search implementation that ensures provider is properly configured before use
-   */
-  search: async (_options: SearchOptions): Promise<SearchResult[]> => {
-    return err(
-      new Error('Brave Search provider must be configured before use. Call brave.configure() first.')
-    ) as any;
-  },
-};

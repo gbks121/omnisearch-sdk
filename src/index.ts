@@ -16,13 +16,6 @@ export async function webSearch(options: WebSearchOptions): Promise<SearchResult
     throw new Error('At least one search provider is required');
   }
 
-  // Validate that at least one provider supports the search query
-  const hasArxivProvider = provider.some((p) => p.name === 'arxiv');
-  const trimmedQuery = options.query?.trim();
-  if (!trimmedQuery && !(hasArxivProvider && options.idList)) {
-    throw new Error('A search query or ID list (for Arxiv) is required');
-  }
-
   // Log search parameters if debugging is enabled
   debug.log(
     debugOptions,

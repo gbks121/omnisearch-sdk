@@ -1,12 +1,7 @@
-import { err } from 'neverthrow';
-import { debug, get, post, createBaseProvider } from '../utils';
-import {
-  SearchProvider,
-  SearchResult,
-  SearchOptions,
-  ProviderConfig,
-  DebugOptions,
-} from '../types';
+import { SearchOptions, SearchProvider, SearchResult, ProviderConfig, DebugOptions } from '../types';
+import { get, post } from '../utils';
+import { debug } from '../utils/debug';
+import { AbstractSearchProvider } from './base';
 
 /**
  * DuckDuckGo image search result
@@ -21,9 +16,6 @@ interface DuckDuckGoImageResult {
   source: string;
 }
 
-/**
- * DuckDuckGo image search response
- */
 interface DuckDuckGoImagesResponse {
   results: DuckDuckGoImageResult[];
   next?: string;
@@ -41,9 +33,6 @@ interface DuckDuckGoNewsResult {
   source: string;
 }
 
-/**
- * DuckDuckGo news search response
- */
 interface DuckDuckGoNewsResponse {
   results: DuckDuckGoNewsResult[];
   next?: string;
@@ -60,9 +49,9 @@ export interface DuckDuckGoConfig extends ProviderConfig {
 }
 
 /**
- * Extended SearchOptions with DuckDuckGo-specific options
+ * DuckDuckGo specific search options
  */
-interface DuckDuckGoSearchOptions extends SearchOptions {
+export interface DuckDuckGoSearchOptions extends SearchOptions {
   searchType?: 'text' | 'images' | 'news';
 }
 
@@ -98,81 +87,73 @@ function extractVqd(html: string): string | null {
   return match ? match[1] : null;
 }
 
-export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchProvider {
-  const searchType = config.searchType || 'text';
-  const useLite = config.useLite || false;
+export class DuckDuckGoSearchProvider extends AbstractSearchProvider<DuckDuckGoConfig, DuckDuckGoSearchOptions> {
+  public readonly name = 'duckduckgo';
 
-  const baseUrls = {
-    text: config.baseUrl || (useLite ? DEFAULT_BASE_URLS.lite : DEFAULT_BASE_URLS.text),
-    images: config.baseUrl || DEFAULT_BASE_URLS.images,
-    news: config.baseUrl || DEFAULT_BASE_URLS.news,
-  };
+  protected getTroubleshooting(error: Error, statusCode?: number): string {
+    if (error.message.includes('vqd')) {
+      return 'Failed to extract the vqd parameter from DuckDuckGo. This may be due to temporary API changes or rate limiting. Try again later.';
+    }
+    if (statusCode === 429 || error.message.includes('rate')) {
+      return 'You may be making too many requests to DuckDuckGo. Try adding a delay between requests.';
+    }
+    return '';
+  }
 
-  const headers = {
-    'User-Agent':
-      config.userAgent ||
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    Referer: useLite ? 'https://lite.duckduckgo.com/' : 'https://html.duckduckgo.com/',
-  };
+  protected async doSearch(options: DuckDuckGoSearchOptions): Promise<SearchResult[]> {
+    const {
+      query,
+      maxResults = 10,
+      region = 'wt-wt',
+      safeSearch = 'moderate',
+      debug: debugOptions,
+      timeout,
+    } = options;
 
-  return createBaseProvider({
-    name: 'duckduckgo',
-    config: { ...config, apiKey: config.apiKey || '' },
-    getTroubleshooting: (error: Error, statusCode?: number) => {
-      if (error.message.includes('vqd')) {
-        return 'Failed to extract the vqd parameter from DuckDuckGo. This may be due to temporary API changes or rate limiting. Try again later.';
-      }
-      if (statusCode === 429 || error.message.includes('rate')) {
-        return 'You may be making too many requests to DuckDuckGo. Try adding a delay between requests.';
-      }
-      return '';
-    },
-    search: async (options: SearchOptions): Promise<SearchResult[]> => {
-      const {
-        query,
-        maxResults = 10,
-        region = 'wt-wt',
-        safeSearch = 'moderate',
-        debug: debugOptions,
-        timeout,
-      } = options;
+    const effectiveSearchType = options.searchType || this.config.searchType || 'text';
 
-      const duckOptions = options as DuckDuckGoSearchOptions;
-      const effectiveSearchType = duckOptions.searchType || searchType;
+    if (!query || !query.trim()) {
+      throw new Error('DuckDuckGo search requires a query.');
+    }
 
-      if (!query || !query.trim()) {
-        throw new Error('DuckDuckGo search requires a query.');
-      }
+    if (effectiveSearchType === 'images') {
+      return await this.searchImages(query, region, safeSearch, maxResults, debugOptions, timeout);
+    } else if (effectiveSearchType === 'news') {
+      return await this.searchNews(query, region, safeSearch, maxResults, debugOptions, timeout);
+    } else {
+      return await this.searchText(query, region, safeSearch, maxResults, debugOptions, timeout);
+    }
+  }
 
-      if (effectiveSearchType === 'images') {
-        return await searchImages(query, region, safeSearch, maxResults, debugOptions, timeout);
-      } else if (effectiveSearchType === 'news') {
-        return await searchNews(query, region, safeSearch, maxResults, debugOptions, timeout);
-      } else {
-        return await searchText(query, region, safeSearch, maxResults, debugOptions, timeout);
-      }
-    },
-  });
+  private getHeaders() {
+    return {
+      'User-Agent':
+        this.config.userAgent ||
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      Referer: this.config.useLite ? 'https://lite.duckduckgo.com/' : 'https://html.duckduckgo.com/',
+    };
+  }
 
-  async function searchText(
+  private async searchText(
     query: string,
     region: string,
     _safeSearch: string,
     maxResults: number,
-    debugOptions?: DebugOptions,
+    _debugOptions?: DebugOptions,
     timeout?: number
   ): Promise<SearchResult[]> {
-    const baseUrl = useLite ? DEFAULT_BASE_URLS.lite : baseUrls.text;
+    const useLite = this.config.useLite || false;
+    const baseUrl = this.config.baseUrl || (useLite ? DEFAULT_BASE_URLS.lite : DEFAULT_BASE_URLS.text);
     const payload = { q: query, b: '', kl: region };
 
-    const result = await post<string>(baseUrl, payload, { headers, timeout });
+    const result = await post<string>(baseUrl, payload, { headers: this.getHeaders(), timeout });
     if (result.isErr()) throw result.error;
     const response = result.value;
     const results: SearchResult[] = [];
     const cache = new Set<string>();
 
     if (useLite) {
-      const resultsRegex = /<a class="result-link" href="([^"]+)">([^<]+)<\/a>.*?<div class="result-snippet">([^<]+)<\/div>/gs;
+      const resultsRegex = /<a class="result-link" href="([^"]+)">([^<]+)<\/a>.*?<div class="result-snippet">([^<]+)<\/div>/gs;       
       let match;
       while ((match = resultsRegex.exec(response)) !== null && results.length < maxResults) {
         const href = match[1];
@@ -206,16 +187,17 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
     return results;
   }
 
-  async function searchImages(
+  private async searchImages(
     query: string,
     region: string,
     safeSearch: string,
     maxResults: number,
-    debugOptions?: DebugOptions,
+    _debugOptions?: DebugOptions,
     timeout?: number
   ): Promise<SearchResult[]> {
+    const baseUrl = this.config.baseUrl || DEFAULT_BASE_URLS.images;
     const initialResult = await get<string>('https://duckduckgo.com', {
-      headers: { ...headers, Referer: 'https://duckduckgo.com/' },
+      headers: { ...this.getHeaders(), Referer: 'https://duckduckgo.com/' },
       timeout,
     });
     if (initialResult.isErr()) throw initialResult.error;
@@ -225,7 +207,7 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
     if (!vqd) throw new Error('Failed to extract vqd parameter for DuckDuckGo Images Search');
 
     const safesearchMapping: Record<string, string> = { on: '1', moderate: '1', off: '-1' };
-    const searchUrl = new URL(baseUrls.images);
+    const searchUrl = new URL(baseUrl);
     searchUrl.searchParams.append('l', region);
     searchUrl.searchParams.append('o', 'json');
     searchUrl.searchParams.append('q', query);
@@ -233,7 +215,7 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
     searchUrl.searchParams.append('p', safesearchMapping[safeSearch.toLowerCase()] || '1');
 
     const result = await get<DuckDuckGoImagesResponse>(searchUrl.toString(), {
-      headers: { ...headers, Referer: 'https://duckduckgo.com/' },
+      headers: { ...this.getHeaders(), Referer: 'https://duckduckgo.com/' },
       timeout,
     });
     if (result.isErr()) throw result.error;
@@ -256,7 +238,7 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
     return results;
   }
 
-  async function searchNews(
+  private async searchNews(
     query: string,
     region: string,
     safeSearch: string,
@@ -264,8 +246,9 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
     _debugOptions?: DebugOptions,
     timeout?: number
   ): Promise<SearchResult[]> {
+    const baseUrl = this.config.baseUrl || DEFAULT_BASE_URLS.news;
     const initialResult = await get<string>('https://duckduckgo.com', {
-      headers: { ...headers, Referer: 'https://duckduckgo.com/' },
+      headers: { ...this.getHeaders(), Referer: 'https://duckduckgo.com/' },
       timeout,
     });
     if (initialResult.isErr()) throw initialResult.error;
@@ -275,7 +258,7 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
     if (!vqd) throw new Error('Failed to extract vqd parameter for DuckDuckGo News Search');
 
     const safesearchMapping: Record<string, string> = { on: '1', moderate: '-1', off: '-2' };
-    const searchUrl = new URL(baseUrls.news);
+    const searchUrl = new URL(baseUrl);
     searchUrl.searchParams.append('l', region);
     searchUrl.searchParams.append('o', 'json');
     searchUrl.searchParams.append('noamp', '1');
@@ -284,7 +267,7 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
     searchUrl.searchParams.append('p', safesearchMapping[safeSearch.toLowerCase()] || '-1');
 
     const result = await get<DuckDuckGoNewsResponse>(searchUrl.toString(), {
-      headers,
+      headers: this.getHeaders(),
       timeout,
     });
     if (result.isErr()) throw result.error;
@@ -309,15 +292,9 @@ export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): SearchP
   }
 }
 
-export const duckduckgo = {
-  name: 'duckduckgo',
-  config: { apiKey: '' },
-  configure: (config: DuckDuckGoConfig = {}): SearchProvider => createDuckDuckGoProvider(config),
-  search: async (_options: SearchOptions) => {
-    return err(
-      new Error(
-        'DuckDuckGo provider must be configured before use. Call duckduckgo.configure() first.'
-      )
-    );
-  },
-} as unknown as SearchProvider & { configure: (config: DuckDuckGoConfig) => SearchProvider };
+/**
+ * Creates a DuckDuckGo search provider instance
+ */
+export function createDuckDuckGoProvider(config: DuckDuckGoConfig = {}): DuckDuckGoSearchProvider {
+  return new DuckDuckGoSearchProvider(config);
+}

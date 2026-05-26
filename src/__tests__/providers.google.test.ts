@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createGoogleProvider, google } from '../providers/google';
+import { createGoogleProvider } from '../providers/google';
 
 function mockFetch(status: number, body: unknown, statusText = 'OK'): void {
   const bodyStr = JSON.stringify(body);
@@ -379,25 +379,5 @@ describe('createGoogleProvider', () => {
       expect(msg.toLowerCase()).toContain('search failed');
       expect(msg.toLowerCase()).toContain('string error');
     }
-  });
-});
-
-describe('google singleton', () => {
-  it('has correct name', () => {
-    expect(google.name).toBe('google');
-  });
-
-  it('returns error when search is called without configure', async () => {
-    const result = await google.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message.toLowerCase()).toContain('provider must be configured before use');
-    }
-  });
-
-  it('configure returns a working provider', () => {
-    const provider = google.configure({ apiKey: 'test-key', cx: 'test-cx' });
-    expect(provider.name).toBe('google');
-    expect(provider.config.apiKey).toBe('test-key');
   });
 });

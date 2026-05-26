@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createBraveProvider, brave } from '../providers/brave';
+import { createBraveProvider } from '../providers/brave';
 
 function mockFetch(status: number, body: unknown, statusText = 'OK'): void {
   const bodyStr = JSON.stringify(body);
@@ -291,24 +291,5 @@ describe('createBraveProvider', () => {
     if (result.isOk()) {
       expect(result.value).toEqual([]);
     }
-  });
-});
-
-describe('brave singleton', () => {
-  it('has correct name', () => {
-    expect(brave.name).toBe('brave');
-  });
-
-  it('returns error when search is called without configure', async () => {
-    const result = await brave.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('Brave Search provider must be configured before use');
-    }
-  });
-
-  it('configure returns a working provider', () => {
-    const provider = brave.configure({ apiKey: 'test-key' });
-    expect(provider.name).toBe('brave');
   });
 });

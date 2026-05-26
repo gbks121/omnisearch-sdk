@@ -13,23 +13,25 @@ This project is a TypeScript SDK for aggregating web search results from multipl
 ## 📁 Project Structure
 - `src/index.ts`: Main entry point (`webSearch` function).
 - `src/providers/`: Individual search provider implementations (e.g., `google.ts`, `brave.ts`).
+- `src/providers/base.ts`: `AbstractSearchProvider` base class with built-in resilience.
 - `src/types/index.ts`: Central type definitions and Zod schemas.
-- `src/utils/provider.ts`: Base logic for creating providers with built-in resilience.
 - `src/utils/http.ts`: Standardized fetch wrapper.
 
 ## 🛠 Adding a Search Provider
-1. **Define Config Schema:** If the provider requires new config fields, update `ProviderConfig` in `src/types/index.ts`.
-2. **Implement Provider:** Create `src/providers/<name>.ts`.
-   - Use `createBaseProvider` from `src/utils/provider.ts`.
-   - Map raw API response to `SearchResult[]` (defined in `src/types/index.ts`).
-3. **Register Provider:** Export the new provider from `src/providers/index.ts`.
-4. **Add Tests:** Create `src/__tests__/providers.<name>.test.ts` with comprehensive mocks.
+1. **Define Types:** Create an interface for the provider-specific configuration and search options if needed.
+2. **Implement Provider Class:** Create `src/providers/<name>.ts`.
+   - Extend `AbstractSearchProvider` from `./base`.
+   - Implement `doSearch` method.
+   - Optionally implement `getTroubleshooting` for better error messages.
+3. **Export Factory:** Export a `create<Name>Provider` function that returns an instance of your class.
+4. **Register Provider:** Export the factory and class from `src/providers/index.ts`.
+5. **Add Tests:** Create `src/__tests__/providers.<name>.test.ts` with comprehensive mocks.
 
 ## ⚠️ Important Rules
-- **No Direct Fetch:** Use `httpClient` from `src/utils/http.ts` for all network requests.
-- **Resilience First:** Always wrap search logic in `createBaseProvider` to inherit retry and timeout logic.
+- **No Direct Fetch:** Use `get` or `post` from `src/utils/http.ts` for all network requests.
+- **Resilience First:** Always extend `AbstractSearchProvider` to inherit retry, timeout, and throttling logic.
 - **Standardized Output:** Ensure all providers return `SearchResult[]` following the `SearchResultSchema`.
-- **Type Safety:** Maintain strict TypeScript types. Avoid `any`.
+- **Type Safety:** Maintain strict TypeScript types. Avoid `any` where possible.
 
 ## 🧪 Testing Commands
 - `pnpm test`: Run all tests.

@@ -1,7 +1,7 @@
 import { SearchOptions, SearchProvider, SearchResult, ProviderConfig } from '../types';
-import { post, createBaseProvider } from '../utils';
+import { post } from '../utils';
 import { debug } from '../utils/debug';
-import { err } from 'neverthrow';
+import { AbstractSearchProvider } from './base';
 
 /**
  * Parallel Search API response types
@@ -32,13 +32,9 @@ interface ParallelSearchResponse {
  * Source policy for Parallel search
  */
 interface SourcePolicy {
-  /** List of domains to restrict results to */
   include_domains?: string[];
-  /** List of domains to exclude from results */
   exclude_domains?: string[];
-  /** Optional start date for filtering (RFC 3339 date string: YYYY-MM-DD) */
   after_date?: string;
-  /** Optional end date for filtering (RFC 3339 date string: YYYY-MM-DD) */
   before_date?: string;
 }
 
@@ -46,9 +42,7 @@ interface SourcePolicy {
  * Excerpt settings for Parallel search
  */
 interface ExcerptSettings {
-  /** Maximum characters per excerpt */
   max_chars_per_result?: number;
-  /** Number of excerpts to return per result */
   count?: number;
 }
 
@@ -56,7 +50,6 @@ interface ExcerptSettings {
  * Fetch policy for Parallel search
  */
 interface FetchPolicy {
-  /** Strategy for fetching content */
   strategy?: 'cached' | 'live';
 }
 
@@ -64,19 +57,12 @@ interface FetchPolicy {
  * Parallel Search API request body
  */
 interface ParallelSearchRequestBody {
-  /** Natural-language description of what to find */
   objective?: string;
-  /** Traditional keyword search queries */
   search_queries?: string[];
-  /** Mode: 'one-shot' or 'agentic' */
   mode?: 'one-shot' | 'agentic';
-  /** Maximum number of results */
   max_results?: number;
-  /** Excerpt settings */
   excerpts?: ExcerptSettings;
-  /** Source policy */
   source_policy?: SourcePolicy;
-  /** Fetch policy */
   fetch_policy?: FetchPolicy;
 }
 
@@ -88,7 +74,7 @@ export interface ParallelConfig extends ProviderConfig {
   baseUrl?: string;
   /** Mode: 'one-shot' for comprehensive results, 'agentic' for concise results */
   mode?: 'one-shot' | 'agentic';
-  /** Maximum number of results (may be limited by processor) */
+  /** Maximum number of results */
   maxResults?: number;
   /** Domains to include in search results */
   includeDomains?: string[];
@@ -118,209 +104,155 @@ const DEFAULT_BASE_URL = 'https://api.parallel.ai/v1beta/search';
  */
 const PARALLEL_BETA_HEADER = 'search-extract-2025-10-10';
 
-/**
- * Creates a Parallel search provider instance
- *
- * @param config Configuration options for Parallel
- * @returns A configured Parallel search provider
- */
-export function createParallelProvider(config: ParallelConfig): SearchProvider {
-  if (!config.apiKey) {
-    throw new Error('Parallel requires an API key');
+export class ParallelSearchProvider extends AbstractSearchProvider<ParallelConfig> {
+  public readonly name = 'parallel';
+
+  constructor(config: ParallelConfig) {
+    if (!config.apiKey) {
+      throw new Error('Parallel requires an API key');
+    }
+    super(config);
   }
 
-  const baseUrl = config.baseUrl || DEFAULT_BASE_URL;
+  protected getTroubleshooting(_error: Error, statusCode?: number): string {
+    if (statusCode === 401 || statusCode === 403) {
+      return "Authentication failed or Access denied. Check your apiKey and make sure it's valid and has the correct permissions.";
+    }
+    if (statusCode === 400) {
+      return 'Bad request. This is likely due to invalid request parameters. Check your query and other search options.';
+    }
+    if (statusCode === 429) {
+      return "Rate limit exceeded. You've exceeded the rate limit for this API. Try again later or reduce your request frequency.";
+    }
+    if (statusCode && statusCode >= 500) {
+      return 'Server error. The search provider is experiencing issues. Try again later.';
+    }
+    return '';
+  }
 
-  return createBaseProvider({
-    name: 'parallel',
-    config,
-    getTroubleshooting: (_error: Error, statusCode?: number) => {
-      if (statusCode === 401 || statusCode === 403) {
-        return "Authentication failed or Access denied. Check your apiKey and make sure it's valid and has the correct permissions.";
-      }
-      if (statusCode === 400) {
-        return 'Bad request. This is likely due to invalid request parameters. Check your query and other search options.';
-      }
-      if (statusCode === 429) {
-        return "Rate limit exceeded. You've exceeded the rate limit for this API. Try again later or reduce your request frequency.";
-      }
-      if (statusCode && statusCode >= 500) {
-        return 'Server error. The search provider is experiencing issues. Try again later.';
-      }
-      return '';
-    },
-    search: async (options: SearchOptions): Promise<SearchResult[]> => {
-      const { query, maxResults = 10, timeout, debug: debugOptions } = options;
+  protected async doSearch(options: SearchOptions): Promise<SearchResult[]> {
+    const { query, maxResults = 10, timeout, debug: debugOptions } = options;
 
-      if (!query || !query.trim()) {
-        throw new Error('Parallel search requires a query.');
-      }
+    if (!query || !query.trim()) {
+      throw new Error('Parallel search requires a query.');
+    }
 
-      // Prepare request body with Parallel-specific parameters
-      const requestBody: ParallelSearchRequestBody = {
-        objective: query,
+    const requestBody: ParallelSearchRequestBody = {
+      objective: query,
+    };
+
+    if (this.config.mode) {
+      requestBody.mode = this.config.mode;
+    }
+
+    const effectiveMaxResults = maxResults || this.config.maxResults || 10;
+    requestBody.max_results = effectiveMaxResults;
+
+    if (this.config.maxCharsPerResult !== undefined || this.config.excerptCount !== undefined) {
+      const excerptSettings: ExcerptSettings = {};
+      if (this.config.maxCharsPerResult !== undefined) {
+        excerptSettings.max_chars_per_result = this.config.maxCharsPerResult;
+      }
+      if (this.config.excerptCount !== undefined) {
+        excerptSettings.count = this.config.excerptCount;
+      }
+      requestBody.excerpts = excerptSettings;
+    }
+
+    if (
+      this.config.includeDomains?.length ||
+      this.config.excludeDomains?.length ||
+      this.config.afterDate ||
+      this.config.beforeDate
+    ) {
+      const sourcePolicy: SourcePolicy = {};
+      if (this.config.includeDomains?.length) {
+        sourcePolicy.include_domains = this.config.includeDomains;
+      }
+      if (this.config.excludeDomains?.length) {
+        sourcePolicy.exclude_domains = this.config.excludeDomains;
+      }
+      if (this.config.afterDate) {
+        sourcePolicy.after_date = this.config.afterDate;
+      }
+      if (this.config.beforeDate) {
+        sourcePolicy.before_date = this.config.beforeDate;
+      }
+      requestBody.source_policy = sourcePolicy;
+    }
+
+    if (this.config.fetchStrategy) {
+      requestBody.fetch_policy = {
+        strategy: this.config.fetchStrategy,
       };
+    }
 
-      // Add mode from config or default to 'one-shot'
-      if (config.mode) {
-        requestBody.mode = config.mode;
-      }
+    const baseUrl = this.config.baseUrl || DEFAULT_BASE_URL;
 
-      // Add max_results from options or config
-      const effectiveMaxResults = maxResults || config.maxResults || 10;
-      requestBody.max_results = effectiveMaxResults;
+    debug.logRequest(debugOptions, 'Parallel Search request', {
+      url: baseUrl,
+      body: { ...requestBody, apiKey: '***' },
+    });
 
-      // Configure excerpt settings if specified in config
-      if (config.maxCharsPerResult !== undefined || config.excerptCount !== undefined) {
-        const excerptSettings: ExcerptSettings = {};
+    const result = await post<ParallelSearchResponse>(baseUrl, requestBody, {
+      headers: {
+        'x-api-key': this.config.apiKey as string,
+        'Content-Type': 'application/json',
+        'parallel-beta': PARALLEL_BETA_HEADER,
+      },
+      timeout,
+    });
+    if (result.isErr()) throw result.error;
+    const response = result.value;
 
-        if (config.maxCharsPerResult !== undefined) {
-          excerptSettings.max_chars_per_result = config.maxCharsPerResult;
-        }
+    debug.logResponse(debugOptions, 'Parallel Search raw response', {
+      status: 'success',
+      itemCount: response.results?.length || 0,
+      searchId: response.search_id || '',
+      warnings: response.warnings || [],
+      usage: response.usage || [],
+    });
 
-        if (config.excerptCount !== undefined) {
-          excerptSettings.count = config.excerptCount;
-        }
-
-        requestBody.excerpts = excerptSettings;
-      }
-
-      // Configure source policy if any domain or date filters are specified
-      if (
-        config.includeDomains?.length ||
-        config.excludeDomains?.length ||
-        config.afterDate ||
-        config.beforeDate
-      ) {
-        const sourcePolicy: SourcePolicy = {};
-
-        if (config.includeDomains?.length) {
-          sourcePolicy.include_domains = config.includeDomains;
-        }
-
-        if (config.excludeDomains?.length) {
-          sourcePolicy.exclude_domains = config.excludeDomains;
-        }
-
-        if (config.afterDate) {
-          sourcePolicy.after_date = config.afterDate;
-        }
-
-        if (config.beforeDate) {
-          sourcePolicy.before_date = config.beforeDate;
-        }
-
-        requestBody.source_policy = sourcePolicy;
-      }
-
-      // Configure fetch policy if specified
-      if (config.fetchStrategy) {
-        requestBody.fetch_policy = {
-          strategy: config.fetchStrategy,
-        };
-      }
-
-      // Log request details if debugging is enabled
-      const logBody = {
-        ...requestBody,
-        apiKey: '***', // Hide API key in logs
-      } as Record<string, unknown>;
-
-      debug.logRequest(debugOptions, 'Parallel Search request', {
-        url: baseUrl,
-        body: logBody,
+    // Log warnings if present
+    if (response.warnings && response.warnings.length > 0) {
+      debug.log(debugOptions, 'Parallel Search warnings', {
+        warnings: response.warnings,
       });
+    }
 
-      // We've already validated that apiKey exists at the start of createParallelProvider
-      const apiKey = config.apiKey as string;
+    if (!response.results || response.results.length === 0) {
+      return [];
+    }
 
-      const result = await post<ParallelSearchResponse>(baseUrl, requestBody, {
-        headers: {
-          'x-api-key': apiKey,
-          'Content-Type': 'application/json',
-          'parallel-beta': PARALLEL_BETA_HEADER,
-        },
-        timeout,
-      });
-      if (result.isErr()) throw result.error;
-      const response = result.value;
-
-      // Log response if debugging is enabled
-      debug.logResponse(debugOptions, 'Parallel Search raw response', {
-        status: 'success',
-        itemCount: response.results?.length || 0,
-        searchId: response.search_id || '',
-        warnings: response.warnings || [],
-        usage: response.usage || [],
-      });
-
-      // Log warnings if present
-      if (response.warnings && response.warnings.length > 0) {
-        debug.log(debugOptions, 'Parallel Search warnings', {
-          warnings: response.warnings,
-        });
+    return response.results.map((result) => {
+      let domain;
+      try {
+        domain = new URL(result.url).hostname;
+      } catch {
+        domain = undefined;
       }
 
-      if (!response.results || response.results.length === 0) {
-        debug.log(debugOptions, 'Parallel Search returned no results');
-        return [];
-      }
+      const excerpts = result.excerpts || [];
+      const snippet = excerpts.length > 0 ? excerpts[0] : undefined;
+      const content = excerpts.length > 0 ? excerpts.join('\n\n') : undefined;
 
-      // Transform Parallel response to standard SearchResult format
-      return response.results.map((result) => {
-        // Extract domain from URL
-        let domain;
-        try {
-          domain = new URL(result.url).hostname;
-        } catch {
-          domain = undefined;
-        }
-
-        // Join excerpts array for snippet and content
-        // Use first excerpt for snippet if available, join all for content
-        const excerpts = result.excerpts || [];
-        const snippet = excerpts.length > 0 ? excerpts[0] : undefined;
-        const content = excerpts.length > 0 ? excerpts.join('\n\n') : undefined;
-
-        return {
-          url: result.url,
-          title: result.title || 'No title available',
-          snippet,
-          content,
-          domain,
-          publishedDate: result.publish_date,
-          provider: 'parallel',
-          raw: result,
-        };
-      });
-    },
-  });
+      return {
+        url: result.url,
+        title: result.title || 'No title available',
+        snippet,
+        content,
+        domain,
+        publishedDate: result.publish_date,
+        provider: 'parallel',
+        raw: result,
+      };
+    });
+  }
 }
 
 /**
- * Pre-configured Parallel search provider
- * Note: You must call configure before using this provider
+ * Creates a Parallel search provider instance
  */
-export const parallel = {
-  name: 'parallel',
-  config: { apiKey: '' },
-
-  /**
-   * Configure the Parallel search provider with your API credentials
-   *
-   * @param config Parallel configuration
-   * @returns Configured Parallel search provider
-   */
-  configure: (config: ParallelConfig) => createParallelProvider(config),
-
-  /**
-   * Search implementation that ensures provider is properly configured before use
-   */
-  search: async (_options: SearchOptions): Promise<SearchResult[]> => {
-    return err(
-      new Error(
-        'Parallel search provider must be configured before use. Call parallel.configure() first.'
-      )
-    ) as any;
-  },
-};
+export function createParallelProvider(config: ParallelConfig): ParallelSearchProvider {
+  return new ParallelSearchProvider(config);
+}

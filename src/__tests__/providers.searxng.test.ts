@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createSearXNGProvider, searxng } from '../providers/searxng';
+import { createSearXNGProvider } from '../providers/searxng';
 
 function mockFetch(status: number, body: unknown, statusText = 'OK'): void {
   const bodyStr = JSON.stringify(body);
@@ -281,21 +281,3 @@ describe('createSearXNGProvider', () => {
   });
 });
 
-describe('searxng singleton', () => {
-  it('has correct name', () => {
-    expect(searxng.name).toBe('searxng');
-  });
-
-  it('returns error when search is called without configure', async () => {
-    const result = await searxng.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('SearXNG provider must be configured before use');
-    }
-  });
-
-  it('configure returns a working provider', () => {
-    const provider = searxng.configure({ baseUrl: 'https://searxng.example.com/search' });
-    expect(provider.name).toBe('searxng');
-  });
-});

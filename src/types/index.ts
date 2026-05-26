@@ -40,8 +40,6 @@ export interface DebugOptions {
 export interface SearchOptions {
   /** The search query text */
   query?: string;
-  /** (Arxiv specific) A comma-delimited list of Arxiv IDs to fetch. */
-  idList?: string;
   /** Maximum number of results to return */
   maxResults?: number;
   /** Language/locale for results */
@@ -52,12 +50,6 @@ export interface SearchOptions {
   safeSearch?: 'off' | 'moderate' | 'strict';
   /** Result page number */
   page?: number;
-  /** Pagination offset (Arxiv specific) */
-  start?: number;
-  /** Sort order (Arxiv specific) */
-  sortBy?: 'relevance' | 'lastUpdatedDate' | 'submittedDate';
-  /** Sort direction (Arxiv specific) */
-  sortOrder?: 'ascending' | 'descending';
   /** Custom timeout in milliseconds */
   timeout?: number;
   /** Debug options */
@@ -69,13 +61,16 @@ export interface SearchOptions {
 /**
  * Interface that all search provider implementations must satisfy
  */
-export interface SearchProvider {
+export interface SearchProvider<
+  TConfig extends ProviderConfig = ProviderConfig,
+  TOptions extends SearchOptions = SearchOptions,
+> {
   /** Name of the search provider */
   name: string;
   /** Search method implementation returning a ResultAsync */
-  search: (options: SearchOptions) => ResultAsync<SearchResult[], Error>;
+  search: (options: TOptions) => ResultAsync<SearchResult[], Error>;
   /** API configuration for the provider */
-  config: ProviderConfig;
+  config: TConfig;
 }
 
 /**
@@ -101,7 +96,9 @@ export interface ProviderConfig {
  */
 export interface WebSearchOptions extends SearchOptions {
   /** Array of search providers to query */
-  provider: SearchProvider[];
+  provider: SearchProvider<any, any>[];
   /** Max concurrency for p-map */
   concurrency?: number;
+  /** Additional provider-specific options */
+  [key: string]: any;
 }

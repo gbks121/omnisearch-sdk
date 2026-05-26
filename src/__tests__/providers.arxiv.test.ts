@@ -10,7 +10,7 @@ vi.mock('fast-xml-parser', () => ({
   },
 }));
 
-import { createArxivProvider, arxiv } from '../providers/arxiv';
+import { createArxivProvider } from '../providers/arxiv';
 
 const getMockParse = () => mockParseFn;
 
@@ -448,29 +448,5 @@ describe('createArxivProvider', () => {
     if (result.isOk()) {
       expect(result.value[0].url).toBe('http://arxiv.org/abs/fallback');
     }
-  });
-});
-
-describe('arxiv singleton', () => {
-  it('has correct name', () => {
-    expect(arxiv.name).toBe('arxiv');
-  });
-
-  it('returns error when search is called without configure', async () => {
-    const result = await arxiv.search({ retries: 0, query: 'test' });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('Arxiv provider must be configured before use');
-    }
-  });
-
-  it('configure returns a working provider', () => {
-    const provider = arxiv.configure({});
-    expect(provider.name).toBe('arxiv');
-  });
-
-  it('configure with no args returns a working provider', () => {
-    const provider = arxiv.configure();
-    expect(provider.name).toBe('arxiv');
   });
 });

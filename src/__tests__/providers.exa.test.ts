@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createExaProvider, exa } from '../providers/exa';
+import { createExaProvider } from '../providers/exa';
 
 function mockFetch(status: number, body: unknown, statusText = 'OK'): void {
   const bodyStr = JSON.stringify(body);
@@ -265,24 +265,5 @@ describe('createExaProvider', () => {
       expect(result.error.message).toContain('Exa search failed:');
       expect(result.error.message).toContain('string error');
     }
-  });
-});
-
-describe('exa singleton', () => {
-  it('has correct name', () => {
-    expect(exa.name).toBe('exa');
-  });
-
-  it('returns error when search is called without configure', async () => {
-    const result = await exa.search({ retries: 0, query: 'test' });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('Exa provider must be configured before use');
-    }
-  });
-
-  it('configure returns a working provider', () => {
-    const provider = exa.configure({ apiKey: 'test-key' });
-    expect(provider.name).toBe('exa');
   });
 });

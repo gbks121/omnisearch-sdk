@@ -28,11 +28,11 @@ npm install omnisearch-sdk
 The `webSearch` function provides a simplified, aggregate interface for querying multiple providers at once.
 
 ```typescript
-import { webSearch, google, brave } from 'omnisearch-sdk';
+import { webSearch, createGoogleProvider, createBraveProvider } from 'omnisearch-sdk';
 
-// Configure providers with your API keys
-google.configure({ apiKey: 'YOUR_GOOGLE_API_KEY', searchEngineId: 'YOUR_CX' });
-brave.configure({ apiKey: 'YOUR_BRAVE_API_KEY' });
+// Initialize providers with your API keys
+const google = createGoogleProvider({ apiKey: 'YOUR_API_KEY', cx: 'YOUR_CX' });
+const brave = createBraveProvider({ apiKey: 'YOUR_API_KEY' });
 
 async function search() {
   try {
@@ -52,18 +52,18 @@ async function search() {
 
 ## 🛠️ Supported Providers
 
-| Provider | Export | Requirements |
+| Provider | Factory Function | Requirements |
 | :--- | :--- | :--- |
-| **Google** | `google` | API Key & Search Engine ID |
-| **Brave** | `brave` | API Key |
-| **Exa** | `exa` | API Key |
-| **Tavily** | `tavily` | API Key |
-| **SerpAPI** | `serpapi` | API Key |
-| **Perplexity** | `perplexity` | API Key |
-| **SearXNG** | `searxng` | Instance URL |
-| **Arxiv** | `arxiv` | None |
-| **DuckDuckGo** | `duckduckgo` | None (Scraping) |
-| **Parallel** | `parallel` | Meta-provider |
+| **Google** | `createGoogleProvider` | API Key & CX (Search Engine ID) |
+| **Brave** | `createBraveProvider` | API Key |
+| **Exa** | `createExaProvider` | API Key |
+| **Tavily** | `createTavilyProvider` | API Key |
+| **SerpAPI** | `createSerpApiProvider` | API Key |
+| **Perplexity** | `createPerplexityProvider` | API Key |
+| **SearXNG** | `createSearXNGProvider` | Instance URL |
+| **Arxiv** | `createArxivProvider` | None |
+| **DuckDuckGo** | `createDuckDuckGoProvider` | None (Scraping) |
+| **Parallel** | `createParallelProvider` | API Key |
 
 ## 🧩 Advanced Usage
 
@@ -72,8 +72,9 @@ async function search() {
 Internal providers return `ResultAsync` objects. This allows you to handle errors explicitly without `try/catch` blocks.
 
 ```typescript
-import { google } from 'omnisearch-sdk';
+import { createGoogleProvider } from 'omnisearch-sdk';
 
+const google = createGoogleProvider({ apiKey: '...', cx: '...' });
 const result = await google.search({ query: 'Hello World' });
 
 if (result.isOk()) {
@@ -86,17 +87,17 @@ if (result.isOk()) {
 
 ### Configuration & Retries
 
-All providers support a global configuration and per-request overrides.
+All providers support configuration at instantiation and per-request overrides.
 
 ```typescript
-google.configure({
+const google = createGoogleProvider({
   apiKey: '...',
-  retries: 3, // Defaults to 2
-  maxResults: 5,
+  cx: '...',
+  timeout: 5000, // 5s timeout
 });
 
-// Request-specific override
-await google.search({ query: '...', maxResults: 10 });
+// Request-specific override (e.g. more results, custom retries)
+await google.search({ query: '...', maxResults: 20, retries: 5 });
 ```
 
 ### Timeouts & Throttling
@@ -104,10 +105,11 @@ await google.search({ query: '...', maxResults: 10 });
 Control request deadlines and prevent rate limiting at the source.
 
 ```typescript
-import { google } from 'omnisearch-sdk';
+import { createGoogleProvider } from 'omnisearch-sdk';
 
-google.configure({
+const google = createGoogleProvider({
   apiKey: '...',
+  cx: '...',
   // Global timeout for all requests to this provider
   timeout: 5000, 
   // Proactive rate limiting: 5 requests per 2 seconds
@@ -127,7 +129,9 @@ await google.search({
 Enable logging to see exactly what's happening under the hood.
 
 ```typescript
-import { webSearch } from 'omnisearch-sdk';
+import { webSearch, createGoogleProvider } from 'omnisearch-sdk';
+
+const google = createGoogleProvider({ apiKey: '...', cx: '...' });
 
 const results = await webSearch({
   query: '...',

@@ -1,18 +1,22 @@
 import { describe, it, expect, vi } from 'vitest';
-import { createBaseProvider } from '../utils/provider';
+import { AbstractSearchProvider } from '../providers/base';
 import { SearchOptions, SearchResult } from '../types';
 
-describe('createBaseProvider Resilience Features', () => {
-  it('should timeout if search takes too long', async () => {
-    const slowSearch = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      return [] as SearchResult[];
-    };
+class TestSearchProvider extends AbstractSearchProvider {
+  public readonly name = 'test';
+  public searchImpl = vi.fn().mockResolvedValue([]);
 
-    const provider = createBaseProvider({
-      name: 'test',
-      config: { timeout: 50 },
-      search: slowSearch,
+  protected async doSearch(options: SearchOptions): Promise<SearchResult[]> {
+    return this.searchImpl(options);
+  }
+}
+
+describe('AbstractSearchProvider Resilience Features', () => {
+  it('should timeout if search takes too long', async () => {
+    const provider = new TestSearchProvider({ timeout: 50 });
+    provider.searchImpl.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return [];
     });
 
     const result = await provider.search({ query: 'test', retries: 0 });
@@ -22,15 +26,10 @@ describe('createBaseProvider Resilience Features', () => {
   });
 
   it('should honor request-specific timeout override', async () => {
-    const slowSearch = async () => {
+    const provider = new TestSearchProvider({ timeout: 1000 });
+    provider.searchImpl.mockImplementation(async () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
-      return [] as SearchResult[];
-    };
-
-    const provider = createBaseProvider({
-      name: 'test',
-      config: { timeout: 1000 },
-      search: slowSearch,
+      return [];
     });
 
     // Short override should fail
@@ -41,15 +40,9 @@ describe('createBaseProvider Resilience Features', () => {
   });
 
   it('should throttle requests if throttleLimit is set', async () => {
-    const searchSpy = vi.fn().mockResolvedValue([]);
-    
-    const provider = createBaseProvider({
-      name: 'test',
-      config: { 
-        throttleLimit: 1, 
-        throttleInterval: 100 
-      },
-      search: searchSpy,
+    const provider = new TestSearchProvider({ 
+      throttleLimit: 1, 
+      throttleInterval: 100 
     });
 
     const start = Date.now();
@@ -62,7 +55,7 @@ describe('createBaseProvider Resilience Features', () => {
     
     const duration = Date.now() - start;
     
-    expect(searchSpy).toHaveBeenCalledTimes(2);
+    expect(provider.searchImpl).toHaveBeenCalledTimes(2);
     expect(duration).toBeGreaterThanOrEqual(100);
   });
 });

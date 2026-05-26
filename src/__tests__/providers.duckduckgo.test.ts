@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createDuckDuckGoProvider, duckduckgo } from '../providers/duckduckgo';
+import { createDuckDuckGoProvider } from '../providers/duckduckgo';
 
 function createTextResponse(body: string): Response {
   return {
@@ -395,26 +395,3 @@ describe('createDuckDuckGoProvider', () => {
   });
 });
 
-describe('duckduckgo singleton', () => {
-  it('has correct name', () => {
-    expect(duckduckgo.name).toBe('duckduckgo');
-  });
-
-  it('returns error when search is called without configure', async () => {
-    const result = await duckduckgo.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message).toContain('DuckDuckGo provider must be configured before use');
-    }
-  });
-
-  it('configure returns a working provider', () => {
-    const provider = duckduckgo.configure({});
-    expect(provider.name).toBe('duckduckgo');
-  });
-
-  it('configure with no args returns a working provider', () => {
-    const provider = duckduckgo.configure();
-    expect(provider.name).toBe('duckduckgo');
-  });
-});

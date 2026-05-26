@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createTavilyProvider, tavily } from '../providers/tavily';
+import { createTavilyProvider } from '../providers/tavily';
 
 function mockFetch(status: number, body: unknown, statusText = 'OK'): void {
   const bodyStr = JSON.stringify(body);
@@ -327,21 +327,3 @@ describe('createTavilyProvider', () => {
   });
 });
 
-describe('tavily singleton', () => {
-  it('has correct name', () => {
-    expect(tavily.name).toBe('tavily');
-  });
-
-  it('returns error when search is called without configure', async () => {
-    const result = await tavily.search({ query: 'test', retries: 0 });
-    expect(result.isErr()).toBe(true);
-    if (result.isErr()) {
-      expect(result.error.message.toLowerCase()).toContain('tavily provider must be configured before use');
-    }
-  });
-
-  it('configure returns a working provider', () => {
-    const provider = tavily.configure({ apiKey: 'test-key' });
-    expect(provider.name).toBe('tavily');
-  });
-});

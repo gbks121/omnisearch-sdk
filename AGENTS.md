@@ -5,7 +5,7 @@ This project is a TypeScript SDK for aggregating web search results from multipl
 ## 🏗 Tech Stack & Conventions
 - **Runtime:** Node.js >= 24 (ESM)
 - **Language:** TypeScript
-- **Error Handling:** Functional style using `neverthrow`. Avoid `throw` for operational errors; return `Result` or `ResultAsync`.
+- **Error Handling:** Structured error hierarchy (`SearchProviderError` subclasses). Throw `ProviderApiError`, `RateLimitError`, `TimeoutError`, `NetworkError`, or `SearchValidationError` — never raw `Error`. Consumers use try/catch.
 - **Validation:** `zod` for schema definition and runtime validation.
 - **Concurrency:** `p-map` for parallel searches, `p-retry` for resilience, `p-throttle` for rate limiting.
 - **Testing:** `vitest`. Tests should use mocks for network calls.
@@ -18,7 +18,7 @@ This project is a TypeScript SDK for aggregating web search results from multipl
 - `src/utils/http.ts`: Standardized fetch wrapper.
 
 ## 🛠 Adding a Search Provider
-1. **Define Types:** Create an interface for the provider-specific configuration and search options if needed.
+1. **Define Types:** Create an interface for the provider-specific configuration if needed.
 2. **Implement Provider Class:** Create `src/providers/<name>.ts`.
    - Extend `AbstractSearchProvider` from `./base`.
    - Implement `doSearch` method.

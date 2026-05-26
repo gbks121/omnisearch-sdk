@@ -84,7 +84,6 @@ next-env.d.ts
 
 # Beads & Ralph-TUI
 .beads/*
-AGENTS.md
 .ralph-tui/*
 
 # bv (beads viewer) local config and caches

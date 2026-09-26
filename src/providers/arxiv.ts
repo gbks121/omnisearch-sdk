@@ -1,6 +1,6 @@
-import { get, clampMaxResults } from '../utils';
-import { SearchResult, SearchQuery, ProviderConfig } from '../types';
 import { XMLParser } from 'fast-xml-parser';
+import type { ProviderConfig, SearchQuery, SearchResult } from '../types';
+import { clampMaxResults, get } from '../utils';
 import { AbstractSearchProvider } from './base';
 
 interface ArxivAtomLink {
@@ -126,7 +126,7 @@ export class ArxivSearchProvider extends AbstractSearchProvider<ArxivConfig> {
 
     const parsedXml: ArxivParsedXml = arxivXmlParser.parse(responseXmlText);
 
-    if (!parsedXml || !parsedXml.feed) {
+    if (!parsedXml?.feed) {
       return [];
     }
 

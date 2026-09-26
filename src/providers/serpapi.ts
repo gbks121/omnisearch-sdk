@@ -1,5 +1,5 @@
-import { SearchQuery, SearchResult, ProviderConfig } from '../types';
-import { buildUrl, get, clampMaxResults } from '../utils';
+import type { ProviderConfig, SearchQuery, SearchResult } from '../types';
+import { buildUrl, clampMaxResults, get } from '../utils';
 import { AbstractSearchProvider } from './base';
 
 interface SerpApiSearchResult {
@@ -89,7 +89,7 @@ export class SerpApiSearchProvider extends AbstractSearchProvider<SerpApiConfig>
   protected async doSearch(options: SearchQuery): Promise<SearchResult[]> {
     const { query, maxResults = 10, page = 1, language, region, safeSearch, timeout } = options;
 
-    if (!query || !query.trim()) {
+    if (!query?.trim()) {
       throw new Error('SerpAPI search requires a query.');
     }
 

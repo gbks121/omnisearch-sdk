@@ -1,4 +1,4 @@
-import { SearchQuery, SearchResult, ProviderConfig } from '../types';
+import type { ProviderConfig, SearchQuery, SearchResult } from '../types';
 import { buildUrl, get } from '../utils';
 import { AbstractSearchProvider } from './base';
 
@@ -127,7 +127,7 @@ export class GoogleSearchProvider extends AbstractSearchProvider<GoogleSearchCon
   protected async doSearch(options: SearchQuery): Promise<SearchResult[]> {
     const { query, maxResults = 10, page = 1, language, region, safeSearch, timeout } = options;
 
-    if (!query || !query.trim()) {
+    if (!query?.trim()) {
       throw new Error('Google search requires a query.');
     }
 
@@ -162,7 +162,7 @@ export class GoogleSearchProvider extends AbstractSearchProvider<GoogleSearchCon
         if (item.pagemap?.metatags && item.pagemap.metatags.length > 0) {
           const metatags = item.pagemap.metatags[0];
           publishedDate =
-            metatags['article:published_time'] || metatags['date'] || metatags['og:updated_time'];
+            metatags['article:published_time'] || metatags.date || metatags['og:updated_time'];
         }
 
         return {

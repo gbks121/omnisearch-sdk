@@ -1,4 +1,4 @@
-import { SearchQuery, SearchResult, ProviderConfig } from '../types';
+import type { ProviderConfig, SearchQuery, SearchResult } from '../types';
 import { get, post } from '../utils';
 import { AbstractSearchProvider } from './base';
 
@@ -95,7 +95,7 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<DuckDuckGoC
       (this.config.searchType as 'text' | 'images' | 'news') ||
       'text';
 
-    if (!query || !query.trim()) {
+    if (!query?.trim()) {
       throw new Error('DuckDuckGo search requires a query.');
     }
 
@@ -145,8 +145,8 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<DuckDuckGoC
     if (useLite) {
       const resultsRegex =
         /<a class="result-link" href="([^"]+)">([^<]+)<\/a>.*?<div class="result-snippet">([^<]+)<\/div>/gs;
-      let match;
-      while ((match = resultsRegex.exec(response)) !== null && results.length < maxResults) {
+      let match: RegExpExecArray | null = resultsRegex.exec(response);
+      while (match !== null && results.length < maxResults) {
         const href = match[1];
         if (!cache.has(href)) {
           cache.add(href);
@@ -157,12 +157,13 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<DuckDuckGoC
             provider: 'duckduckgo',
           });
         }
+        match = resultsRegex.exec(response);
       }
     } else {
       const resultsRegex =
         /<h2 class="result__title">.*?<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)<\/a>.*?<\/h2>.*?<a[^>]*class="result__snippet"[^>]*>(.*?)<\/a>/gs;
-      let match;
-      while ((match = resultsRegex.exec(response)) !== null && results.length < maxResults) {
+      let match: RegExpExecArray | null = resultsRegex.exec(response);
+      while (match !== null && results.length < maxResults) {
         const href = match[1];
         if (!cache.has(href)) {
           cache.add(href);
@@ -173,6 +174,7 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<DuckDuckGoC
             provider: 'duckduckgo',
           });
         }
+        match = resultsRegex.exec(response);
       }
     }
 

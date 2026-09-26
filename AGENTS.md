@@ -36,5 +36,6 @@ This project is a TypeScript SDK for aggregating web search results from multipl
 ## 🧪 Testing Commands
 - `pnpm test`: Run all tests.
 - `pnpm test <filename>`: Run a specific test file.
-- `pnpm run lint`: Check for linting errors.
-- `pnpm run format`: Format code with Prettier.
+- `pnpm run lint`: Check for linting errors with Biome.
+- `pnpm run format`: Format code with Biome.
+- `pnpm run check`: Run Biome formatter, linter, and import sorting.

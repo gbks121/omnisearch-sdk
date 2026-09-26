@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { HttpError, makeRequest, get, post, buildUrl } from '../utils/http';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { buildUrl, get, HttpError, makeRequest, post } from '../utils/http';
 
 function mockResponse(status: number, body: unknown, statusText = 'OK', isJson = true): Response {
   const bodyStr = isJson ? JSON.stringify(body) : (body as string);

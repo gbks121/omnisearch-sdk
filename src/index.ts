@@ -1,5 +1,10 @@
 import pMap from 'p-map';
-import { SearchResult, WebSearchOptions, SearchProviderError, ProviderApiError } from './types';
+import {
+  ProviderApiError,
+  SearchProviderError,
+  type SearchResult,
+  type WebSearchOptions,
+} from './types';
 
 export async function webSearch(options: WebSearchOptions): Promise<SearchResult[]> {
   const { provider, concurrency = 10, hooks, ...searchOptions } = options;
@@ -50,6 +55,5 @@ export async function webSearch(options: WebSearchOptions): Promise<SearchResult
   return allResults;
 }
 
-export * from './types';
-
 export * from './providers';
+export * from './types';

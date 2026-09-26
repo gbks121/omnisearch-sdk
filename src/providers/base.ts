@@ -1,18 +1,18 @@
 import pRetry, { AbortError } from 'p-retry';
-import pTimeout from 'p-timeout';
 import pThrottle from 'p-throttle';
+import pTimeout from 'p-timeout';
 import {
-  SearchQuery,
-  SearchResult,
-  SearchProvider,
-  ProviderConfig,
-  SearchResultSchema,
-  SearchProviderError,
-  RateLimitError,
-  TimeoutError,
-  SearchValidationError,
-  ProviderApiError,
   NetworkError,
+  ProviderApiError,
+  type ProviderConfig,
+  RateLimitError,
+  type SearchProvider,
+  type SearchProviderError,
+  type SearchQuery,
+  type SearchResult,
+  SearchResultSchema,
+  SearchValidationError,
+  TimeoutError,
 } from '../types';
 import { HttpError } from '../utils/http';
 
@@ -20,9 +20,9 @@ interface ExtendedAbortError extends AbortError {
   originalError: Error;
 }
 
-export abstract class AbstractSearchProvider<
-  TConfig extends ProviderConfig = ProviderConfig,
-> implements SearchProvider<TConfig> {
+export abstract class AbstractSearchProvider<TConfig extends ProviderConfig = ProviderConfig>
+  implements SearchProvider<TConfig>
+{
   public abstract readonly name: string;
   public readonly config: TConfig;
   private throttledSearch?: (options: SearchQuery) => Promise<SearchResult[]>;

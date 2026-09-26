@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createPerplexityProvider } from '../providers/perplexity';
 
 function mockFetch(status: number, body: unknown, statusText = 'OK'): void {

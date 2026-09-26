@@ -1,16 +1,16 @@
 import 'dotenv/config';
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  createGoogleProvider,
+  createArxivProvider,
   createBraveProvider,
+  createDuckDuckGoProvider,
   createExaProvider,
-  createTavilyProvider,
-  createSerpApiProvider,
+  createGoogleProvider,
+  createParallelProvider,
   createPerplexityProvider,
   createSearXNGProvider,
-  createArxivProvider,
-  createDuckDuckGoProvider,
-  createParallelProvider,
+  createSerpApiProvider,
+  createTavilyProvider,
 } from '../providers';
 
 const env = (key: string) => process.env[key];

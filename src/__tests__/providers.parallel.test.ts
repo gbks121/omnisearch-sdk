@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createParallelProvider } from '../providers/parallel';
 
 function mockFetch(status: number, body: unknown, statusText = 'OK'): void {

@@ -1,5 +1,5 @@
-import { SearchQuery, SearchResult, ProviderConfig } from '../types';
-import { post, extractDomain, clampMaxResults } from '../utils';
+import type { ProviderConfig, SearchQuery, SearchResult } from '../types';
+import { clampMaxResults, extractDomain, post } from '../utils';
 import { AbstractSearchProvider } from './base';
 
 interface ParallelWebSearchResult {
@@ -97,7 +97,7 @@ export class ParallelSearchProvider extends AbstractSearchProvider<ParallelConfi
   protected async doSearch(options: SearchQuery): Promise<SearchResult[]> {
     const { query, maxResults = 10, timeout } = options;
 
-    if (!query || !query.trim()) {
+    if (!query?.trim()) {
       throw new Error('Parallel search requires a query.');
     }
 

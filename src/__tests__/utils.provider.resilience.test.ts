@@ -1,13 +1,13 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AbstractSearchProvider } from '../providers/base';
 import {
-  SearchQuery,
-  SearchResult,
-  SearchProviderError,
-  TimeoutError,
-  RateLimitError,
   ProviderApiError,
+  RateLimitError,
+  SearchProviderError,
+  type SearchQuery,
+  type SearchResult,
   SearchValidationError,
+  TimeoutError,
 } from '../types';
 import { HttpError } from '../utils/http';
 

@@ -1,5 +1,5 @@
-import { SearchQuery, SearchResult, ProviderConfig } from '../types';
-import { get, extractDomain, clampMaxResults } from '../utils';
+import type { ProviderConfig, SearchQuery, SearchResult } from '../types';
+import { clampMaxResults, extractDomain, get } from '../utils';
 import { AbstractSearchProvider } from './base';
 
 interface SearXNGResult {
@@ -65,7 +65,7 @@ export class SearXNGSearchProvider extends AbstractSearchProvider<SearXNGConfig>
   protected async doSearch(options: SearchQuery): Promise<SearchResult[]> {
     const { query, maxResults = 10, language, safeSearch, timeout } = options;
 
-    if (!query || !query.trim()) {
+    if (!query?.trim()) {
       throw new Error('SearXNG search requires a query.');
     }
 

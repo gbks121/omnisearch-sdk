@@ -1,5 +1,5 @@
-import { SearchQuery, SearchResult, ProviderConfig } from '../types';
-import { get, extractDomain, clampMaxResults } from '../utils';
+import type { ProviderConfig, SearchQuery, SearchResult } from '../types';
+import { clampMaxResults, extractDomain, get } from '../utils';
 import { AbstractSearchProvider } from './base';
 
 interface BraveSearchWeb {
@@ -115,7 +115,7 @@ export class BraveSearchProvider extends AbstractSearchProvider<BraveSearchConfi
 
     const offset = (page - 1) * clampedMaxResults;
 
-    if (!query || !query.trim()) {
+    if (!query?.trim()) {
       throw new Error('Brave search requires a query.');
     }
 

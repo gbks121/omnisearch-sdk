@@ -11,7 +11,7 @@ Inspired by [PlustOrg/search-sdk](https://github.com/PlustOrg/search-sdk), this 
 - **Smart Retries**: Integrated exponential backoff via `p-retry` for 429 (Rate Limit) and 5xx errors.
 - **Deadlines & Throttling**: Hard timeouts per request via `p-timeout` and proactive rate limiting with `p-throttle`.
 - **Strict Validation**: Type safety with Zod for all provider responses.
-- **Modern ESM**: First-class support for ES Modules and Node 20+.
+- **Modern ESM & CJS**: Dual package support for ES Modules and CommonJS (Node 20+).
 - **Standardized Architecture**: All providers share a common factory, ensuring consistent behavior and troubleshooting.
 
 ## Quick Start
@@ -26,7 +26,7 @@ npm install omnisearch-sdk
 
 ### Basic Usage
 
-The `webSearch` function provides a simplified, aggregate interface for querying multiple providers at once. It returns a plain `Promise<SearchResult[]>` and throws on failure.
+The `webSearch` function provides an aggregate interface for querying multiple providers concurrently. It returns a `Promise<SearchResult[]>` and throws if all providers fail or if no providers are given.
 
 ```typescript
 import { webSearch, createGoogleProvider, createBraveProvider } from 'omnisearch-sdk';
@@ -53,14 +53,14 @@ async function search() {
 
 ## Error Handling
 
-The SDK throws structured error types that extend `SearchProviderError`:
+Direct provider calls (`provider.search(...)`) throw typed errors extending `SearchProviderError`:
 
 | Error Type | Code | When |
 |---|---|---|
 | `RateLimitError` | `RATE_LIMIT` | HTTP 429 |
 | `TimeoutError` | `TIMEOUT` | Request exceeded deadline |
 | `SearchValidationError` | `VALIDATION` | Invalid input (empty query, etc.) |
-| `ProviderApiError` | `PROVIDER` | HTTP 4xx/5xx |
+| `ProviderApiError` | `PROVIDER` | HTTP 4xx/5xx or provider-level errors |
 | `NetworkError` | `NETWORK` | Connection failures |
 
 All errors include:
@@ -68,6 +68,8 @@ All errors include:
 - `error.statusCode` — HTTP status (when applicable)
 - `error.retryable` — whether retrying might help
 - `error.troubleshooting` — actionable hint (on `ProviderApiError`)
+
+When using `webSearch`, if one provider fails while others succeed, the failure is dispatched to `hooks.onError` and successful results are returned. `webSearch` only throws an aggregated error if all configured providers fail (or no provider was provided).
 
 ```typescript
 import { RateLimitError, TimeoutError } from 'omnisearch-sdk';
@@ -83,11 +85,11 @@ try {
 }
 ```
 
-Consumers who prefer `neverthrow` can wrap trivially:
+Consumers who prefer `neverthrow` can wrap calls trivially:
 
 ```typescript
 import { fromPromise } from 'neverthrow';
-const result = await fromPromise(webSearch(opts), (e) => e as SearchProviderError);
+const result = await fromPromise(webSearch(opts), (e) => e as Error);
 ```
 
 ## Lifecycle Hooks
@@ -199,10 +201,14 @@ await brave.search({ query: 'SpaceX', searchType: 'news' });
 
 ```bash
 pnpm install
-pnpm test
-cp .env.example .env   # then edit .env with your API keys
-pnpm test               # unit tests
-pnpm run build
+pnpm test               # Run test suite
+pnpm run type-check     # Type-check TypeScript
+pnpm run check          # Lint & format with Biome
+pnpm run build          # Build ESM, CJS, and DTS bundles
+
+# Optional: Run real integration tests (requires API keys)
+cp .env.example .env    # Configure provider API keys
+pnpm test src/__tests__/integration.test.ts
 ```
 
 ## License

@@ -19,7 +19,8 @@ build/
 lib/
 
 # Internal Docs
-/docs/
+/docs/*
+!/docs/ROADMAP.md
 
 
 # TypeScript

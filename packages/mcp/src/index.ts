@@ -1,6 +1,13 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+
+// Automatically load .env file from current working directory if present
+try {
+  process.loadEnvFile();
+} catch {
+  // Ignore if no .env file is present
+}
 import {
   createArxivProvider,
   createBingProvider,

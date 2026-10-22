@@ -1,6 +1,6 @@
 {
   "name": "omnisearch-cli",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Command-line interface for OmniSearch SDK",
   "type": "module",
   "license": "MIT",

@@ -1,4 +1,11 @@
 import { parseArgs } from 'node:util';
+
+// Automatically load .env file from current working directory if present
+try {
+  process.loadEnvFile();
+} catch {
+  // Ignore if no .env file is present
+}
 import {
   createArxivProvider,
   createBingProvider,

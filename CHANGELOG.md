@@ -5,12 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [4.1.0] - 2026-09-26
+## [5.0.1] - 2026-10-22
 
-### Changed
-- Migrated linter and formatter from ESLint and Prettier to Biome.
-- Upgraded runtime dependencies (`zod` v4, `p-retry` v8, `p-map`, `p-throttle`, `p-timeout`, `fast-xml-parser`).
-- Upgraded development dependencies (`typescript` ~6.0.3, `vitest` v5, `@vitest/coverage-v8`, `dotenv`, `lint-staged`, `tsup`).
+### ⚠️ Breaking Changes & Migration Guide (Upgrading from 4.1.0)
+
+1. **Node.js Runtime Requirement:**
+   - Minimum Node.js version is now `>=24.0.0` (upgraded from `>=18.0.0`). Ensure your deployment runtime and CI environments are updated to Node.js 24+.
+2. **Guaranteed ISO 8601 UTC Timestamps:**
+   - `publishedDate` in `SearchResult` is now strictly normalized to guaranteed ISO 8601 UTC strings (`YYYY-MM-DDTHH:mm:ss.sssZ`) across all providers. If you relied on raw provider date strings or relative dates, update any custom parsers to expect standard ISO 8601 timestamps.
+
+#### Upgrading Dependencies
+```bash
+pnpm add omnisearch-sdk@^5.0.1
+# or
+npm install omnisearch-sdk@^5.0.1
+```
+
+---
+
+### Added
+
+- **Multi-Engine Execution Strategies (`strategy`):**
+  - Added `'fallback'` mode: Cascades sequentially through providers until one succeeds with non-empty results.
+  - Added `'race'` mode: Resolves concurrently with the fastest provider to return results.
+  - Retained `'parallel'` (default) with bounded concurrency via `p-map`.
+- **Result Streaming (`webSearchStream`):**
+  - Lightweight `AsyncIterable<SearchResult>` yielding results incrementally as each engine responds, with live cross-provider deduplication.
+- **Canonical URL Deduplication (`deduplicate: true`):**
+  - Automatic stripping of marketing/tracking query parameters (`utm_*`, `ref`, `fbclid`, `gclid`, `mc_eid`, etc.), protocol/path normalization, and configurable `stripWww`.
+  - Exported standalone `normalizeUrl` and `dedupeResults` utilities.
+- **Unified Freshness & News Search Mode:**
+  - Standardized `freshness: 'day' | 'week' | 'month' | 'year'` across providers.
+  - Standardized `searchType: 'web' | 'news'` mapping to native provider endpoints where available.
+- **Deterministic Domain Filtering:**
+  - Added `includeDomains` and `excludeDomains` to `SearchQuery` with native provider parameters and guaranteed fallback post-filtering.
+- **Pluggable Caching Interface (`SearchCacheStore`):**
+  - Lean cache contract with zero-dependency built-in in-memory LRU cache (`MemoryCacheStore`) and per-query TTL overrides.
+- **Telemetry & Rate Limit Visibility:**
+  - Automatic parsing of vendor and standard rate-limit headers (`x-ratelimit-remaining`, `retry-after`, etc.) attached to `HttpError`, `RateLimitError`, and `ProviderHooks.onResponse`.
+- **Reciprocal Rank Fusion (`reciprocalRankFusion`):**
+  - Standalone utility function to combine and consensus-rank result lists from multiple engines using $RRF(d) = \sum \frac{1}{k + r_m(d)}$.
+- **5 New Search Providers:**
+  - `createBingProvider` (Azure Bing Web Search v7)
+  - `createYouProvider` (You.com Search)
+  - `createPubMedProvider` / `createPubmedProvider` (NCBI PubMed Biomedical search)
+  - `createSemanticScholarProvider` (Semantic Scholar academic paper graph)
+  - `createGitHubProvider` / `createGithubProvider` (GitHub code and repository search)
+- **Downstream Tooling Packages:**
+  - `omnisearch-cli` (v1.0.1): Command-line utility for interactive terminal search and shell scripting.
+  - `omnisearch-mcp` (v1.0.1): Model Context Protocol server exposing `web_search` and `news_search` tools to Claude Desktop, Cursor, and agentic workflows.
+- **Licensing:**
+  - Added official root MIT `LICENSE` file.
+
 
 ## [4.0.0] - 2026-05-26
 

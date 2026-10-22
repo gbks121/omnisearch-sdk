@@ -6,6 +6,23 @@ const WEEK_MS = 7 * DAY_MS;
 const MONTH_MS = 30 * DAY_MS;
 const YEAR_MS = 365 * DAY_MS;
 
+export type FreshnessWindow = 'day' | 'week' | 'month' | 'year';
+
+const FRESHNESS_OFFSET_MS: Record<FreshnessWindow, number> = {
+  day: DAY_MS,
+  week: WEEK_MS,
+  month: MONTH_MS,
+  year: YEAR_MS,
+};
+
+/** Start date (YYYY-MM-DD) of a freshness window relative to a reference time. */
+export function freshnessToStartDateIso(
+  freshness: FreshnessWindow,
+  referenceTimeMs: number = Date.now()
+): string {
+  return new Date(referenceTimeMs - FRESHNESS_OFFSET_MS[freshness]).toISOString().slice(0, 10);
+}
+
 const RELATIVE_REGEX =
   /^(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days|w|wk|wks|week|weeks|mo|mos|month|months|y|yr|yrs|year|years)\s*ago$/i;
 

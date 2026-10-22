@@ -135,7 +135,7 @@ describe('createArxivProvider', () => {
     expect(results).toHaveLength(2);
     expect(results[0].title).toBe('Test Paper Title');
     expect(results[0].snippet).toBe('Abstract of the test paper');
-    expect(results[0].url).toBe('http://arxiv.org/pdf/2305.00001v1');
+    expect(results[0].url).toBe('http://arxiv.org/abs/2305.00001v1');
     expect(results[0].publishedDate).toBe('2023-05-01T00:00:00.000Z');
     expect(results[0].provider).toBe('arxiv');
   });
@@ -149,12 +149,61 @@ describe('createArxivProvider', () => {
     expect(results[0].title).toBe('Test Paper Title');
   });
 
-  it('falls back to abstract URL converted to /pdf/ when no PDF link', async () => {
+  it('defaults to the /abs/ HTML URL and attaches pdfUrl in raw', async () => {
     getMockParse().mockReturnValueOnce(mockParsedFeedSingleEntry);
     const provider = createArxivProvider();
     const results = await provider.search({ retries: 0, query: 'test' });
-    expect(results[0].url).toContain('/pdf/');
+    expect(results[0].url).toBe('http://arxiv.org/abs/2305.00003v1');
+    expect((results[0].raw as Record<string, unknown>).pdfUrl).toBe(
+      'http://arxiv.org/pdf/2305.00003v1'
+    );
+  });
+
+  it('returns PDF URLs when preferPdfUrl is true (query option)', async () => {
+    getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
+    const provider = createArxivProvider();
+    const results = await provider.search({ retries: 0, query: 'test', preferPdfUrl: true });
+    expect(results[0].url).toBe('http://arxiv.org/pdf/2305.00001v1');
+  });
+
+  it('returns PDF URLs when preferPdfUrl is set in config', async () => {
+    getMockParse().mockReturnValueOnce(mockParsedFeedSingleEntry);
+    const provider = createArxivProvider({ preferPdfUrl: true });
+    const results = await provider.search({ retries: 0, query: 'test' });
     expect(results[0].url).toBe('http://arxiv.org/pdf/2305.00003v1');
+  });
+
+  it('defaults sortBy to submittedDate when freshness is set', async () => {
+    getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
+    const provider = createArxivProvider();
+    await provider.search({ retries: 0, query: 'test', freshness: 'week' });
+    const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(url).toContain('sortBy=submittedDate');
+    expect(url).toContain('sortOrder=descending');
+  });
+
+  it('defaults sortBy to submittedDate when recencyFilter is set', async () => {
+    getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
+    const provider = createArxivProvider();
+    await provider.search({ retries: 0, query: 'test', recencyFilter: 'day' });
+    const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(url).toContain('sortBy=submittedDate');
+  });
+
+  it('keeps explicit sortBy over the freshness default', async () => {
+    getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
+    const provider = createArxivProvider();
+    await provider.search({ retries: 0, query: 'test', freshness: 'week', sortBy: 'relevance' });
+    const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(url).toContain('sortBy=relevance');
+  });
+
+  it('keeps relevance sorting when no freshness is requested', async () => {
+    getMockParse().mockReturnValueOnce(mockParsedFeedMultiEntry);
+    const provider = createArxivProvider();
+    await provider.search({ retries: 0, query: 'test' });
+    const url = (vi.mocked(globalThis.fetch) as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(url).toContain('sortBy=relevance');
   });
 
   it('returns empty array when no entries in feed', async () => {

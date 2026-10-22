@@ -49,6 +49,8 @@ export interface ArxivConfig extends ProviderConfig {
   baseUrl?: string;
   sortBy?: 'relevance' | 'lastUpdatedDate' | 'submittedDate';
   sortOrder?: 'ascending' | 'descending';
+  /** When true, result URLs point to the PDF instead of the /abs/ HTML page (default: false). */
+  preferPdfUrl?: boolean;
 }
 
 const DEFAULT_BASE_URL = 'https://export.arxiv.org/api/query';
@@ -94,10 +96,13 @@ export class ArxivSearchProvider extends AbstractSearchProvider<ArxivConfig> {
 
     const idList = options.idList as string | undefined;
     const start = (options.start as number) ?? 0;
+    const preferPdfUrl =
+      (options.preferPdfUrl as boolean | undefined) ?? this.config.preferPdfUrl ?? false;
+    const hasFreshness = Boolean(options.freshness || options.recencyFilter);
     const sortBy =
       (options.sortBy as 'relevance' | 'lastUpdatedDate' | 'submittedDate') ||
       this.config.sortBy ||
-      'relevance';
+      (hasFreshness ? 'submittedDate' : 'relevance');
     const sortOrder =
       (options.sortOrder as 'ascending' | 'descending') || this.config.sortOrder || 'descending';
 
@@ -122,7 +127,11 @@ export class ArxivSearchProvider extends AbstractSearchProvider<ArxivConfig> {
     const baseUrl = this.config.baseUrl || DEFAULT_BASE_URL;
     const url = `${baseUrl}?${params.toString()}`;
 
-    const responseXmlText = await get<string>(url, { timeout });
+    const responseXmlText = await get<string>(url, {
+      timeout,
+      signal: options.signal,
+      onTelemetry: options.onTelemetry,
+    });
 
     const parsedXml: ArxivParsedXml = arxivXmlParser.parse(responseXmlText);
 
@@ -143,6 +152,7 @@ export class ArxivSearchProvider extends AbstractSearchProvider<ArxivConfig> {
       const pdfLinkObj = links.find((l) => l.title === 'pdf');
       const alternateLink = links.find((l) => l.rel === 'alternate' && l.type === 'text/html');
 
+      const absLink = alternateLink?.href || entry.id;
       let pdfLink = '';
       if (pdfLinkObj) {
         pdfLink = pdfLinkObj.href;
@@ -151,12 +161,12 @@ export class ArxivSearchProvider extends AbstractSearchProvider<ArxivConfig> {
       }
 
       return {
-        url: pdfLink || entry.id,
+        url: preferPdfUrl ? pdfLink || absLink : absLink,
         title: entry.title.replace(/\n\s*/g, ' ').trim(),
         snippet: entry.summary.replace(/\n\s*/g, ' ').trim(),
         publishedDate: entry.published || entry.updated,
         provider: 'arxiv',
-        raw: entry,
+        raw: { ...entry, pdfUrl: pdfLink || undefined },
       };
     });
 

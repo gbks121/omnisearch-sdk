@@ -32,6 +32,13 @@ export interface PubMedConfig extends ProviderConfig {
 const DEFAULT_ESEARCH_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi';
 const DEFAULT_ESUMMARY_URL = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi';
 
+const FRESHNESS_RELDATE: Record<'day' | 'week' | 'month' | 'year', number> = {
+  day: 1,
+  week: 7,
+  month: 30,
+  year: 365,
+};
+
 export class PubMedSearchProvider extends AbstractSearchProvider<PubMedConfig> {
   public readonly name = 'pubmed';
   protected override get displayName(): string {
@@ -68,12 +75,21 @@ export class PubMedSearchProvider extends AbstractSearchProvider<PubMedConfig> {
       retmode: 'json',
       retmax: clampedMaxResults,
     };
+    const freshness = options.freshness || options.recencyFilter;
+    if (freshness) {
+      searchParams.reldate = FRESHNESS_RELDATE[freshness];
+      searchParams.datetype = 'pdat';
+    }
     if (this.config.apiKey) {
       searchParams.api_key = this.config.apiKey;
     }
 
     const searchFullUrl = buildUrl(searchUrl, searchParams);
-    const searchRes = await get<PubMedESearchResponse>(searchFullUrl, { timeout });
+    const searchRes = await get<PubMedESearchResponse>(searchFullUrl, {
+      timeout,
+      signal: options.signal,
+      onTelemetry: options.onTelemetry,
+    });
 
     const idList = searchRes.esearchresult?.idlist;
     if (!idList || idList.length === 0) {
@@ -91,7 +107,11 @@ export class PubMedSearchProvider extends AbstractSearchProvider<PubMedConfig> {
     }
 
     const summaryFullUrl = buildUrl(summaryUrl, summaryParams);
-    const summaryRes = await get<PubMedESummaryResponse>(summaryFullUrl, { timeout });
+    const summaryRes = await get<PubMedESummaryResponse>(summaryFullUrl, {
+      timeout,
+      signal: options.signal,
+      onTelemetry: options.onTelemetry,
+    });
 
     if (!summaryRes.result) {
       return [];

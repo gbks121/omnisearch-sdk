@@ -89,4 +89,49 @@ describe('createPubMedProvider', () => {
       expect.anything()
     );
   });
+
+  it.each([
+    ['day', '1'],
+    ['week', '7'],
+  ] as const)(
+    'should map freshness %s to reldate with datetype=pdat',
+    async (freshness, reldate) => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'application/json' }),
+        json: () => Promise.resolve({ esearchresult: { idlist: [] } }),
+        text: () => Promise.resolve('{}'),
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      const provider = createPubMedProvider();
+      await provider.search({ query: 'cancer', freshness });
+
+      const searchUrl = fetchMock.mock.calls[0][0] as string;
+      expect(searchUrl).toContain('reldate=');
+      expect(searchUrl).toContain(`reldate=${reldate}`);
+      expect(searchUrl).toContain('datetype=pdat');
+    }
+  );
+
+  it('should omit reldate when no freshness is set', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-type': 'application/json' }),
+      json: () => Promise.resolve({ esearchresult: { idlist: [] } }),
+      text: () => Promise.resolve('{}'),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const provider = createPubMedProvider();
+    await provider.search({ query: 'cancer' });
+
+    const searchUrl = fetchMock.mock.calls[0][0] as string;
+    expect(searchUrl).not.toContain('reldate=');
+    expect(searchUrl).not.toContain('datetype=pdat');
+  });
 });

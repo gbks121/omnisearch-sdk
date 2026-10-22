@@ -1,5 +1,5 @@
 import type { ProviderConfig, SearchQuery, SearchResult } from '../types';
-import { buildUrl, clampMaxResults, extractDomain, get } from '../utils';
+import { buildUrl, clampMaxResults, extractDomain, freshnessToStartDateIso, get } from '../utils';
 import { AbstractSearchProvider } from './base';
 
 interface GitHubRepoItem {
@@ -60,8 +60,14 @@ export class GitHubSearchProvider extends AbstractSearchProvider<GitHubConfig> {
     const clampedMaxResults = clampMaxResults(maxResults, 1, 100);
     const baseUrl = this.config.baseUrl || DEFAULT_BASE_URL;
 
+    let q = query.trim();
+    const freshness = options.freshness || options.recencyFilter;
+    if (freshness && !/(^|\s)(pushed|created):/.test(q)) {
+      q += ` pushed:>=${freshnessToStartDateIso(freshness)}`;
+    }
+
     const params: Record<string, string | number | undefined> = {
-      q: query.trim(),
+      q,
       per_page: clampedMaxResults,
       page,
     };
@@ -75,7 +81,12 @@ export class GitHubSearchProvider extends AbstractSearchProvider<GitHubConfig> {
       headers.Authorization = `Bearer ${this.config.apiKey}`;
     }
 
-    const response = await get<GitHubSearchResponse>(url, { headers, timeout });
+    const response = await get<GitHubSearchResponse>(url, {
+      headers,
+      timeout,
+      signal: options.signal,
+      onTelemetry: options.onTelemetry,
+    });
 
     if (!response.items || response.items.length === 0) {
       return [];

@@ -1,5 +1,5 @@
 import type { ProviderConfig, SearchQuery, SearchResult } from '../types';
-import { buildUrl, clampMaxResults, extractDomain, get } from '../utils';
+import { buildUrl, clampMaxResults, extractDomain, freshnessToStartDateIso, get } from '../utils';
 import { AbstractSearchProvider } from './base';
 
 interface SemanticScholarPaper {
@@ -62,13 +62,23 @@ export class SemanticScholarSearchProvider extends AbstractSearchProvider<Semant
       fields: 'title,url,abstract,year,publicationDate,authors',
     };
 
+    const freshness = options.freshness || options.recencyFilter;
+    if (freshness) {
+      params.publicationDateOrYear = `${freshnessToStartDateIso(freshness)}:`;
+    }
+
     const url = buildUrl(baseUrl, params);
     const headers: Record<string, string> = {};
     if (this.config.apiKey) {
       headers['x-api-key'] = this.config.apiKey;
     }
 
-    const response = await get<SemanticScholarResponse>(url, { headers, timeout });
+    const response = await get<SemanticScholarResponse>(url, {
+      headers,
+      timeout,
+      signal: options.signal,
+      onTelemetry: options.onTelemetry,
+    });
 
     if (!response.data || response.data.length === 0) {
       return [];

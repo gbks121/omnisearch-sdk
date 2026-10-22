@@ -59,4 +59,41 @@ describe('createGitHubProvider', () => {
     const provider = createGitHubProvider();
     await expect(provider.search({ query: 'repo' })).rejects.toThrow('GitHub rate limit exceeded');
   });
+
+  it.each(['day', 'week'] as const)(
+    'should append pushed:>=YYYY-MM-DD when freshness is %s',
+    async (freshness) => {
+      mockFetch(200, { total_count: 0, incomplete_results: false, items: [] });
+
+      const provider = createGitHubProvider();
+      await provider.search({ query: 'omnisearch', freshness });
+
+      const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      const q = new URL(url).searchParams.get('q') ?? '';
+      expect(q).toContain('omnisearch');
+      expect(q).toMatch(/pushed:>=\d{4}-\d{2}-\d{2}$/);
+    }
+  );
+
+  it('should not duplicate pushed qualifier when query already has one', async () => {
+    mockFetch(200, { total_count: 0, incomplete_results: false, items: [] });
+
+    const provider = createGitHubProvider();
+    await provider.search({ query: 'omnisearch pushed:>=2020-01-01', freshness: 'week' });
+
+    const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    const q = new URL(url).searchParams.get('q') ?? '';
+    expect(q.match(/pushed:>=/g)).toHaveLength(1);
+  });
+
+  it('should not append pushed qualifier without freshness', async () => {
+    mockFetch(200, { total_count: 0, incomplete_results: false, items: [] });
+
+    const provider = createGitHubProvider();
+    await provider.search({ query: 'omnisearch' });
+
+    const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    const q = new URL(url).searchParams.get('q') ?? '';
+    expect(q).toBe('omnisearch');
+  });
 });

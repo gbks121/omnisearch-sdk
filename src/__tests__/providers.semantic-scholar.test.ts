@@ -79,4 +79,39 @@ describe('createSemanticScholarProvider', () => {
       })
     );
   });
+
+  it.each(['day', 'week'] as const)(
+    'should map freshness %s to publicationDateOrYear',
+    async (freshness) => {
+      mockFetch(200, { total: 0, data: [] });
+
+      const provider = createSemanticScholarProvider();
+      await provider.search({ query: 'papers', freshness });
+
+      const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      const parsed = new URL(url);
+      const value = parsed.searchParams.get('publicationDateOrYear');
+      expect(value).toMatch(/^\d{4}-\d{2}-\d{2}:$/);
+    }
+  );
+
+  it('should also honor recencyFilter for publicationDateOrYear', async () => {
+    mockFetch(200, { total: 0, data: [] });
+
+    const provider = createSemanticScholarProvider();
+    await provider.search({ query: 'papers', recencyFilter: 'month' });
+
+    const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(new URL(url).searchParams.get('publicationDateOrYear')).toMatch(/^\d{4}-\d{2}-\d{2}:$/);
+  });
+
+  it('should omit publicationDateOrYear when no freshness is set', async () => {
+    mockFetch(200, { total: 0, data: [] });
+
+    const provider = createSemanticScholarProvider();
+    await provider.search({ query: 'papers' });
+
+    const url = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(new URL(url).searchParams.get('publicationDateOrYear')).toBeNull();
+  });
 });

@@ -41,12 +41,47 @@ The CLI supports 3 ways to provide API keys:
 Place a `.env` file in your current working directory. The CLI will automatically detect and load it on startup without requiring any flags or external dependencies:
 
 ```env
-# .env
-BRAVE_API_KEY=your_brave_api_key
-TAVILY_API_KEY=your_tavily_api_key
-PERPLEXITY_API_KEY=your_perplexity_key
-GOOGLE_API_KEY=your_google_key
-GOOGLE_CX=your_programmable_search_cx
+# .env template — Fill only the providers you want to use:
+
+# Brave Search
+BRAVE_API_KEY=
+
+# Tavily AI Search
+TAVILY_API_KEY=
+
+# Google Custom Search (Requires both)
+GOOGLE_API_KEY=
+GOOGLE_CX=
+
+# Azure Bing Web Search
+BING_API_KEY=
+
+# You.com Search
+YOU_API_KEY=
+
+# Exa Neural Search
+EXA_API_KEY=
+
+# Perplexity AI
+PERPLEXITY_API_KEY=
+
+# Parallel Search
+PARALLEL_API_KEY=
+
+# SerpAPI
+SERPAPI_KEY=
+
+# Self-Hosted SearXNG Instance
+SEARXNG_URL=
+
+# GitHub (Optional, increases rate limit)
+GITHUB_TOKEN=
+
+# Semantic Scholar (Optional, increases rate limit)
+SEMANTIC_SCHOLAR_API_KEY=
+
+# PubMed / NCBI (Optional, increases rate limit)
+PUBMED_API_KEY=
 ```
 
 Then simply run:

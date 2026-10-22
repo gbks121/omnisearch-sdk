@@ -56,7 +56,7 @@ function resolveProviders(providerName?: string): SearchProvider[] {
   const registry: Record<string, () => SearchProvider | null> = {
     duckduckgo: () => createDuckDuckGoProvider(),
     arxiv: () => createArxivProvider(),
-    pubmed: () => createPubMedProvider(),
+    pubmed: () => createPubMedProvider({ apiKey: env.PUBMED_API_KEY }),
     github: () => createGitHubProvider({ apiKey: env.GITHUB_TOKEN || env.GITHUB_API_KEY }),
     brave: () =>
       env.BRAVE_API_KEY || env.BRAVE_SEARCH_API_KEY
@@ -76,10 +76,15 @@ function resolveProviders(providerName?: string): SearchProvider[] {
     parallel: () =>
       env.PARALLEL_API_KEY ? createParallelProvider({ apiKey: env.PARALLEL_API_KEY }) : null,
     serpapi: () =>
-      env.SERPAPI_API_KEY ? createSerpApiProvider({ apiKey: env.SERPAPI_API_KEY }) : null,
+      env.SERPAPI_KEY || env.SERPAPI_API_KEY
+        ? createSerpApiProvider({ apiKey: (env.SERPAPI_KEY || env.SERPAPI_API_KEY)! })
+        : null,
     searxng: () =>
-      env.SEARXNG_BASE_URL ? createSearXNGProvider({ baseUrl: env.SEARXNG_BASE_URL }) : null,
-    semanticscholar: () => createSemanticScholarProvider(),
+      env.SEARXNG_URL || env.SEARXNG_BASE_URL
+        ? createSearXNGProvider({ baseUrl: (env.SEARXNG_URL || env.SEARXNG_BASE_URL)! })
+        : null,
+    semanticscholar: () =>
+      createSemanticScholarProvider({ apiKey: env.SEMANTIC_SCHOLAR_API_KEY }),
   };
 
   if (name) {

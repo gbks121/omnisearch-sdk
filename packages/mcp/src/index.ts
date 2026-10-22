@@ -58,18 +58,24 @@ function getActiveProviders(): SearchProvider[] {
   if (env.PARALLEL_API_KEY) {
     providers.push(createParallelProvider({ apiKey: env.PARALLEL_API_KEY }));
   }
-  if (env.SERPAPI_API_KEY) {
-    providers.push(createSerpApiProvider({ apiKey: env.SERPAPI_API_KEY }));
+  if (env.SERPAPI_KEY || env.SERPAPI_API_KEY) {
+    providers.push(
+      createSerpApiProvider({ apiKey: (env.SERPAPI_KEY || env.SERPAPI_API_KEY)! })
+    );
   }
-  if (env.SEARXNG_BASE_URL) {
-    providers.push(createSearXNGProvider({ baseUrl: env.SEARXNG_BASE_URL }));
+  if (env.SEARXNG_URL || env.SEARXNG_BASE_URL) {
+    providers.push(
+      createSearXNGProvider({ baseUrl: (env.SEARXNG_URL || env.SEARXNG_BASE_URL)! })
+    );
   }
 
-  // Always include zero-API-key fallback providers
+  // Always include zero-API-key fallback providers (with optional keys)
   providers.push(createDuckDuckGoProvider());
-  providers.push(createPubMedProvider());
+  providers.push(createPubMedProvider({ apiKey: env.PUBMED_API_KEY }));
   providers.push(createArxivProvider());
-  providers.push(createSemanticScholarProvider());
+  providers.push(
+    createSemanticScholarProvider({ apiKey: env.SEMANTIC_SCHOLAR_API_KEY })
+  );
   providers.push(createGitHubProvider({ apiKey: env.GITHUB_TOKEN || env.GITHUB_API_KEY }));
 
   return providers;

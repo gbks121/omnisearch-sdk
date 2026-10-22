@@ -83,9 +83,11 @@ Configure any combination of API keys:
 * `EXA_API_KEY` - Exa Neural Search API
 * `PERPLEXITY_API_KEY` - Perplexity Search API
 * `PARALLEL_API_KEY` - Parallel Search API
-* `SERPAPI_API_KEY` - SerpAPI
-* `SEARXNG_BASE_URL` - Self-hosted SearXNG endpoint
+* `SERPAPI_KEY` (or `SERPAPI_API_KEY`) - SerpAPI
+* `SEARXNG_URL` (or `SEARXNG_BASE_URL`) - Self-hosted SearXNG endpoint
 * `GITHUB_TOKEN` - GitHub API Token (optional, raises rate limits)
+* `SEMANTIC_SCHOLAR_API_KEY` - Semantic Scholar API Key (optional)
+* `PUBMED_API_KEY` - PubMed / NCBI API Key (optional)
 
 ---
 

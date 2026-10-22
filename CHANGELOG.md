@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.1.0] - 2026-10-22
+
+Edge hardening, telemetry wiring, KV caching, and provider parity — backward-compatible minor release based on a production integration audit against edge consumers (Cloudflare Workers / Datapulsen).
+
+### Fixed
+
+- **Hook & `RateLimitTelemetry` wiring on `200 OK`:** Rate-limit headers are now extracted from successful responses (not just `HttpError`) and delivered to `hooks.onResponse(provider, count, durationMs, telemetry)` — including `{ cached: true }` on cache hits. Lifecycle hooks now fire exactly once per provider whether called via `webSearch()`, `webSearchStream()`, or `provider.search()` directly.
+- **Timeout propagation:** The resolved `timeout` (query override → provider config → 30s default) is now forwarded into `doSearch()` instead of being silently overridden by the HTTP layer's 15s default.
+- **`strategy: 'race'` cancellation:** Slower providers are aborted via `AbortController` as soon as the winner resolves, preventing dangling `fetch` promises in edge isolates.
+- **Canonical URL write-back:** `dedupeResults()` and `webSearchStream()` now write the stripped canonical URL (tracking params removed, protocol/host normalized) back onto `SearchResult.url`.
+- **Strict ISO 8601 `publishedDate`:** Unparseable date strings are cleared to `undefined` in `validateResults()` instead of leaking raw provider strings.
+
+### Added
+
+- **`signal?: AbortSignal` support:** `SearchQuery` and `HttpRequestOptions` accept an `AbortSignal` combined with per-request timeout controllers (`AbortSignal.any`).
+- **Zero-dependency edge KV cache (`createKvCacheStore`):** Adapter for Cloudflare Workers KV / Vercel KV / Redis-like bindings with deterministic FNV-1a key compaction (`omnisearch:cache:v1:<hash>`), automatic seconds-based `expirationTtl` conversion (respecting Cloudflare KV's 60s minimum), and fail-open behavior on KV errors.
+- **Smart 429 quota short-circuit:** Retries abort immediately when a 429 response reports `remaining === 0` or `retryAfter` above `maxRetryAfterSeconds` (default: 5), avoiding futile retry storms against exhausted quotas.
+- **Bounded stream reading:** Response bodies are read through a bounded reader (`maxResponseBytes`, default 5 MB) that fails fast with `HttpError` (413) instead of OOM-ing edge isolates.
+- **Deterministic `freshness` post-filter:** Results older than the requested `freshness` window are filtered across all 15 providers, with native parameter mapping added for ArXiv (`sortBy: 'submittedDate'`), Semantic Scholar (`publicationDateOrYear`), PubMed (`reldate` + `datetype=pdat`), and GitHub (`pushed:>=YYYY-MM-DD`).
+- **ArXiv canonical URLs:** Results default to `/abs/` HTML links with `pdfUrl` attached in `raw`; `preferPdfUrl?: boolean` restores PDF links.
+
+### Changed
+
+- Broader rate-limit header extraction: `x-ratelimit-*-requests` vendor variants are now recognized alongside the standard `x-ratelimit-*` / `ratelimit-*` headers.
+
 ## [5.0.1] - 2026-10-22
 
 ### ⚠️ Breaking Changes & Migration Guide (Upgrading from 4.1.0)

@@ -147,6 +147,56 @@ const res1 = await brave.search({ query: 'react 19', cache: true });
 const res2 = await brave.search({ query: 'react 19', cache: true });
 ```
 
+### Edge KV Caching (`createKvCacheStore`)
+
+Share cached results across isolates, instances, and regions with any KV binding
+(Cloudflare Workers KV, Vercel KV, Redis-like clients). Zero dependencies, fail-open,
+and keys are compacted to a deterministic `omnisearch:cache:v1:<hash>` form:
+
+```typescript
+import { createBraveProvider, createKvCacheStore } from 'omnisearch-sdk';
+
+// Cloudflare Workers
+export default {
+  async fetch(request, env) {
+    const cache = createKvCacheStore(env.SHARED_KV, { defaultTtlMs: 5 * 60 * 1000 });
+    const brave = createBraveProvider({ apiKey: env.BRAVE_KEY, cache });
+
+    return Response.json(
+      await brave.search({ query: 'edge computing', cache: true })
+    );
+  },
+};
+```
+
+- `expirationTtl` is automatically converted from milliseconds and clamped to the
+  60-second minimum required by Cloudflare Workers KV.
+- Cache hits surface in `hooks.onResponse` telemetry as `{ cached: true }`.
+- Corrupt reads or rejected KV promises fail open (treated as a cache miss).
+
+---
+
+## Cancellation (`signal`) & Bounded Responses
+
+Pass an `AbortSignal` to cancel in-flight searches. With `strategy: 'race'`, losing
+providers are aborted automatically as soon as the winner resolves:
+
+```typescript
+const controller = new AbortController();
+setTimeout(() => controller.abort(), 2000);
+
+await webSearch({
+  query: 'breaking news',
+  provider: [brave, tavily],
+  strategy: 'race',
+  signal: controller.signal,
+});
+```
+
+HTTP responses are read through a bounded stream (default cap: 5 MB) — oversized
+upstream payloads fail fast with an `HttpError` (413) instead of exhausting edge
+isolate memory.
+
 ---
 
 ## Freshness, News, and Domain Filtering
@@ -176,7 +226,9 @@ const results = await webSearch({
     },
     onResponse: (provider, count, durationMs, telemetry) => {
       console.log(`[${provider}] Returned ${count} items in ${durationMs}ms`);
-      if (telemetry?.remaining !== undefined) {
+      if (telemetry?.cached) {
+        console.log(`[${provider}] Served from cache`);
+      } else if (telemetry?.remaining !== undefined) {
         console.log(`Quota remaining: ${telemetry.remaining}`);
       }
     },
@@ -186,6 +238,12 @@ const results = await webSearch({
   },
 });
 ```
+
+Hooks fire exactly once per provider — whether invoked through `webSearch()`,
+`webSearchStream()`, or `provider.search()` directly. On HTTP 429 responses the
+SDK inspects `RateLimitTelemetry` and stops retrying immediately when the quota
+is exhausted (`remaining === 0`) or `retryAfter` exceeds `maxRetryAfterSeconds`
+(default: 5 seconds).
 
 ---
 
@@ -208,6 +266,13 @@ const results = await webSearch({
 | **DuckDuckGo** | `createDuckDuckGoProvider` | Web / News / Images | None |
 | **SearXNG** | `createSearXNGProvider` | Self-Hosted Metasearch | Instance URL |
 | **SerpAPI** | `createSerpApiProvider` | Google / Yahoo / Bing | API Key |
+
+ArXiv results link to the canonical `/abs/` HTML page by default; pass
+`preferPdfUrl: true` (query option or provider config) to link to the PDF instead.
+`freshness` is applied natively by ArXiv (`sortBy=submittedDate`), Semantic Scholar
+(`publicationDateOrYear`), PubMed (`reldate` + `datetype=pdat`), and GitHub
+(`pushed:>=YYYY-MM-DD`), and enforced deterministically across all providers via a
+post-filter on `publishedDate`.
 
 ---
 

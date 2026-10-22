@@ -1,11 +1,12 @@
 {
-  "name": "@omnisearch/cli",
+  "name": "omnisearch-cli",
   "version": "1.0.0",
   "description": "Command-line interface for OmniSearch SDK",
   "type": "module",
   "license": "MIT",
   "bin": {
-    "omnisearch": "./dist/index.js"
+    "omnisearch": "./dist/index.js",
+    "omnisearch-cli": "./dist/index.js"
   },
   "scripts": {
     "build": "tsup",

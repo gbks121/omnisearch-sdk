@@ -18,8 +18,8 @@ This project is a high-performance TypeScript SDK for aggregating web search res
 - `src/providers/base.ts`: `AbstractSearchProvider` base class with built-in resilience, caching, deterministic domain filtering, and ISO 8601 date normalization.
 - `src/types/index.ts`: Central type definitions, error classes, and Zod schemas.
 - `src/utils/`: Shared utilities (`http.ts` for standardized fetch, `url.ts` for canonical URL normalization and deduplication, `date.ts` for ISO date normalization, `rrf.ts` for Reciprocal Rank Fusion, `domain.ts` for domain parsing).
-- `packages/cli`: Standalone CLI tool (`@omnisearch/cli`).
-- `packages/mcp`: Standalone Model Context Protocol server (`@omnisearch/mcp`).
+- `packages/cli`: Standalone CLI tool (`omnisearch-cli`).
+- `packages/mcp`: Standalone Model Context Protocol server (`omnisearch-mcp`).
 
 ## 🛠 Adding a Search Provider
 1. **Define Types:** Create an interface for the provider-specific configuration extending `ProviderConfig` if needed.

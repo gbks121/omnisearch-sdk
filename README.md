@@ -213,21 +213,21 @@ const results = await webSearch({
 
 ## Tooling Packages
 
-### Standalone CLI (`@omnisearch/cli`)
+### Standalone CLI (`omnisearch-cli`)
 Interactive search directly from your terminal:
 ```bash
-npx @omnisearch/cli "AI research papers" --provider pubmed -n 5
-npx @omnisearch/cli "Breaking news" --provider brave --freshness day --json
+npx omnisearch-cli "AI research papers" --provider pubmed -n 5
+npx omnisearch-cli "Breaking news" --provider brave --freshness day --json
 ```
 
-### Model Context Protocol Server (`@omnisearch/mcp`)
+### Model Context Protocol Server (`omnisearch-mcp`)
 Expose OmniSearch directly to Claude Desktop, Cursor, and agent runtimes:
 ```json
 {
   "mcpServers": {
     "omnisearch": {
       "command": "npx",
-      "args": ["-y", "@omnisearch/mcp"],
+      "args": ["-y", "omnisearch-mcp"],
       "env": {
         "BRAVE_API_KEY": "YOUR_KEY"
       }

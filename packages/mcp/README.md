@@ -30,7 +30,7 @@ Add to your `claude_desktop_config.json`:
 }
 ```
 
-> **Note:** If no API keys are provided in `env`, the server automatically defaults to zero-config public providers (DuckDuckGo, PubMed, Arxiv, Semantic Scholar).
+> **Note:** If no API keys are provided in `env`, the server automatically defaults to zero-config public providers (DuckDuckGo, PubMed, Arxiv, Semantic Scholar). If you run the server locally, it also automatically loads any `.env` file present in your current working directory.
 
 ---
 

@@ -33,6 +33,50 @@ omnisearch "quantum computing" -n 5
 
 ---
 
+## 🔑 Providing API Keys
+
+The CLI supports 3 ways to provide API keys:
+
+### 1. Automatic `.env` File (Recommended)
+Place a `.env` file in your current working directory. The CLI will automatically detect and load it on startup without requiring any flags or external dependencies:
+
+```env
+# .env
+BRAVE_API_KEY=your_brave_api_key
+TAVILY_API_KEY=your_tavily_api_key
+PERPLEXITY_API_KEY=your_perplexity_key
+GOOGLE_API_KEY=your_google_key
+GOOGLE_CX=your_programmable_search_cx
+```
+
+Then simply run:
+```bash
+npx omnisearch-cli "latest AI research"
+```
+
+### 2. Inline Environment Variable (One-off / CI)
+Pass keys directly on the command line:
+
+* **macOS / Linux / WSL / Git Bash:**
+  ```bash
+  BRAVE_API_KEY="your_key" npx omnisearch-cli "deep learning" -p brave
+  ```
+* **Windows PowerShell:**
+  ```powershell
+  $env:BRAVE_API_KEY="your_key"; npx omnisearch-cli "deep learning" -p brave
+  ```
+
+### 3. Persistent Shell Profile
+Export your keys in your `~/.bashrc`, `~/.zshrc`, or Windows Environment Variables:
+```bash
+export BRAVE_API_KEY="your_key"
+export TAVILY_API_KEY="your_key"
+```
+
+> **Zero-Key Mode:** If no API keys are configured, `omnisearch-cli` automatically runs using free public providers (**DuckDuckGo**, **PubMed**, **Arxiv**, and **Semantic Scholar**) with no signup required.
+
+---
+
 ## 🛠 Command-Line Options
 
 ```text

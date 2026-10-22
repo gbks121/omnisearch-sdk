@@ -146,6 +146,27 @@ export class GoogleSearchProvider extends AbstractSearchProvider<GoogleSearchCon
     if (region) params.gl = region;
     if (safeSearch) params.safe = safeSearch === 'off' ? 'off' : 'active';
 
+    const freshness = options.freshness || options.recencyFilter;
+    if (freshness) {
+      const googleDateRestrict: Record<string, string> = {
+        day: 'd1',
+        week: 'w1',
+        month: 'm1',
+        year: 'y1',
+      };
+      if (googleDateRestrict[freshness]) {
+        params.dateRestrict = googleDateRestrict[freshness];
+      }
+    }
+
+    if (options.includeDomains && options.includeDomains.length === 1) {
+      params.siteSearch = options.includeDomains[0];
+      params.siteSearchFilter = 'i';
+    } else if (options.excludeDomains && options.excludeDomains.length === 1) {
+      params.siteSearch = options.excludeDomains[0];
+      params.siteSearchFilter = 'e';
+    }
+
     const baseUrl = this.config.baseUrl || DEFAULT_BASE_URL;
     const url = buildUrl(baseUrl, params);
 

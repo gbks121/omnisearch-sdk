@@ -139,7 +139,7 @@ describe('createGoogleProvider', () => {
     expect(results[0].title).toBe('Test Page');
     expect(results[0].snippet).toBe('Test snippet');
     expect(results[0].domain).toBe('example.com');
-    expect(results[0].publishedDate).toBe('2024-01-01T00:00:00Z');
+    expect(results[0].publishedDate).toBe('2024-01-01T00:00:00.000Z');
     expect(results[0].provider).toBe('google');
   });
 
@@ -156,7 +156,7 @@ describe('createGoogleProvider', () => {
     mockFetch(200, response);
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
     const results = await provider.search({ query: 'test', retries: 0 });
-    expect(results[0].publishedDate).toBe('2024-06-01');
+    expect(results[0].publishedDate).toBe('2024-06-01T00:00:00.000Z');
   });
 
   it('extracts publishedDate from "og:updated_time" metatag', async () => {
@@ -172,7 +172,7 @@ describe('createGoogleProvider', () => {
     mockFetch(200, response);
     const provider = createGoogleProvider({ apiKey: 'test-key', cx: 'test-cx' });
     const results = await provider.search({ query: 'test', retries: 0 });
-    expect(results[0].publishedDate).toBe('2024-06-15');
+    expect(results[0].publishedDate).toBe('2024-06-15T00:00:00.000Z');
   });
 
   it('returns empty array when no items in response', async () => {

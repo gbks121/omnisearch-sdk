@@ -82,7 +82,7 @@ describe('createTavilyProvider', () => {
     expect(results[0].title).toBe('Tavily Result');
     expect(results[0].snippet).toBe('Tavily content snippet');
     expect(results[0].domain).toBe('example.com');
-    expect(results[0].publishedDate).toBe('2024-03-01');
+    expect(results[0].publishedDate).toBe('2024-03-01T00:00:00.000Z');
     expect(results[0].provider).toBe('tavily');
   });
 

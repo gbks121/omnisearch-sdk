@@ -1,9 +1,9 @@
 # Agent Guide: Omnisearch SDK
 
-This project is a TypeScript SDK for aggregating web search results from multiple providers.
+This project is a high-performance TypeScript SDK for aggregating web search results from multiple providers.
 
 ## 🏗 Tech Stack & Conventions
-- **Runtime:** Node.js >= 20.0.0 (ESM)
+- **Runtime:** Node.js >= 24.0.0 (ESM)
 - **Language:** TypeScript (strict mode, bundled via `tsup` into ESM & CJS)
 - **Error Handling:** Structured error hierarchy (`SearchProviderError` subclasses). Throw `ProviderApiError`, `RateLimitError`, `TimeoutError`, `NetworkError`, or `SearchValidationError` — never raw `Error` from providers. Consumers use try/catch.
 - **Validation:** `zod` for schema definition and runtime validation (`SearchResultSchema`).
@@ -12,11 +12,14 @@ This project is a TypeScript SDK for aggregating web search results from multipl
 - **Tooling:** Biome (`@biomejs/biome`) for linting, formatting, and import sorting.
 
 ## 📁 Project Structure
-- `src/index.ts`: Main entry point (`webSearch` function, re-exports).
-- `src/providers/`: Individual search provider implementations (e.g., `google.ts`, `brave.ts`).
-- `src/providers/base.ts`: `AbstractSearchProvider` base class with built-in resilience.
+- `src/index.ts`: Main entry point (`webSearch`, `webSearchStream`, re-exports).
+- `src/cache/`: In-memory LRU cache (`MemoryCacheStore`) and `SearchCacheStore` interface.
+- `src/providers/`: Individual search provider implementations (e.g., `google.ts`, `brave.ts`, `bing.ts`, `you.ts`, `pubmed.ts`, `semantic-scholar.ts`, `github.ts`).
+- `src/providers/base.ts`: `AbstractSearchProvider` base class with built-in resilience, caching, deterministic domain filtering, and ISO 8601 date normalization.
 - `src/types/index.ts`: Central type definitions, error classes, and Zod schemas.
-- `src/utils/`: Shared utilities (`http.ts` for standardized fetch, `domain.ts` for URL/domain parsing and result clamping).
+- `src/utils/`: Shared utilities (`http.ts` for standardized fetch, `url.ts` for canonical URL normalization and deduplication, `date.ts` for ISO date normalization, `rrf.ts` for Reciprocal Rank Fusion, `domain.ts` for domain parsing).
+- `packages/cli`: Standalone CLI tool (`@omnisearch/cli`).
+- `packages/mcp`: Standalone Model Context Protocol server (`@omnisearch/mcp`).
 
 ## 🛠 Adding a Search Provider
 1. **Define Types:** Create an interface for the provider-specific configuration extending `ProviderConfig` if needed.
@@ -30,9 +33,10 @@ This project is a TypeScript SDK for aggregating web search results from multipl
 
 ## ⚠️ Important Rules
 - **No Direct Fetch:** Use `get` or `post` from `src/utils/http.ts` for all network requests.
-- **Resilience First:** Always extend `AbstractSearchProvider` to inherit retry, timeout, and throttling logic.
-- **Standardized Output:** Ensure all providers return `SearchResult[]` conforming to `SearchResultSchema`.
+- **Resilience First:** Always extend `AbstractSearchProvider` to inherit retry, timeout, caching, and throttling logic.
+- **Standardized Output:** Ensure all providers return `SearchResult[]` conforming to `SearchResultSchema` with guaranteed ISO 8601 UTC dates.
 - **Type Safety:** Maintain strict TypeScript types. Avoid `any` where possible.
+- **Zero Bloat in Core:** Do not add Node-only native dependencies or heavy CLI/MCP libraries to the root SDK; keep them in `packages/`.
 
 ## 🧪 Commands
 - `pnpm test`: Run all unit tests (`vitest run`).

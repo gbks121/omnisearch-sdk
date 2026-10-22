@@ -39,6 +39,10 @@ interface TavilyRequestBody {
   locale?: string;
   safe_search?: boolean;
   page?: number;
+  topic?: 'general' | 'news';
+  time_range?: 'day' | 'week' | 'month' | 'year';
+  include_domains?: string[];
+  exclude_domains?: string[];
 }
 
 const DEFAULT_BASE_URL = 'https://api.tavily.com/search';
@@ -93,6 +97,23 @@ export class TavilySearchProvider extends AbstractSearchProvider<TavilyConfig> {
 
     if (safeSearch && safeSearch !== 'moderate') {
       requestBody.safe_search = safeSearch === 'strict';
+    }
+
+    const freshness = options.freshness || options.recencyFilter;
+    if (freshness) {
+      requestBody.time_range = freshness;
+    }
+
+    if (options.searchType === 'news') {
+      requestBody.topic = 'news';
+    }
+
+    if (options.includeDomains && options.includeDomains.length > 0) {
+      requestBody.include_domains = options.includeDomains;
+    }
+
+    if (options.excludeDomains && options.excludeDomains.length > 0) {
+      requestBody.exclude_domains = options.excludeDomains;
     }
 
     if (page > 1) {

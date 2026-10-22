@@ -1,95 +1,108 @@
 # Future Roadmap: OmniSearch SDK
 
-This document outlines strategic areas of development prioritized to establish OmniSearch SDK as the premier data retrieval layer for autonomous AI content pipelines, RAG systems, and Edge environments.
+This document outlines strategic areas of development prioritized to establish OmniSearch SDK as a reliable, standardized multi-provider search abstraction layer for AI agents, workflows, and edge environments.
 
 ---
 
-## 🎯 Tier 1: Core Pipeline Reliability & News Freshness (High Priority)
-*Immediate reliability and ingestion quality improvements for automated discovery pipelines.*
+## 🎯 Tier 1: Core Pipeline Reliability & Normalization (Immediate Priority)
+*Foundational resilience, deduplication, and standard metadata needed for production multi-provider retrieval.*
 
-### 1. Fallback & Cascade Execution (`strategy: 'fallback'`)
-*   **The Need:** When a single provider hits rate limits (HTTP 429), quota exhaustion, or returns 0 results, pipelines should not drop the query.
-*   **Implementation:** Support `strategy: 'parallel' | 'fallback' | 'race'`. In `'fallback'` mode, providers execute sequentially in defined priority order (e.g., Brave -> Tavily -> Perplexity) until one succeeds with non-empty results.
+### 1. Fallback & Cascade Execution (`strategy: 'fallback'`) - ✅ *Implemented in v4.2.0*
+*   **The Need:** When a single provider hits rate limits (HTTP 429), quota exhaustion, or temporary upstream failures, retrieval pipelines should gracefully degrade rather than fail.
+*   **Implementation:** Support `strategy: 'parallel' | 'fallback' | 'race'`. In `'fallback'` mode, providers execute sequentially in defined priority order (e.g., Brave -> Tavily -> Google) until one succeeds with non-empty results. In `'race'` mode, providers execute concurrently and return results from the first non-empty response.
 
-### 2. Canonical URL Normalization & Smart Deduplication
-*   **The Need:** Cross-syndicated articles often slip past naive deduplication due to tracking parameters, protocol variants, or trailing slashes, causing redundant downstream AI processing.
+### 2. Canonical URL Normalization & Smart Deduplication - ✅ *Implemented in v4.2.0*
+*   **The Need:** Cross-syndicated search results frequently slip past naive string deduplication due to tracking parameters, protocol variants, or trailing slashes, causing duplicate downstream LLM ingestion.
 *   **Implementation:**
     *   Strip marketing/analytics query params (`utm_*`, `ref`, `fbclid`, `gclid`, `mc_eid`, etc.).
-    *   Normalize protocol (`https`), lowercase host, strip `www.`, and normalize trailing slashes.
-    *   Expose deduplication helper `dedupeResults(results)` and an optional `{ deduplicate: true }` flag in `webSearch`.
+    *   Normalize protocol (`https`), lowercase host, and normalize trailing slashes.
+    *   Support configurable options (e.g., `{ stripWww?: boolean }`, defaulting to `false` to avoid breaking host-dependent routing).
+    *   Expose deduplication helper `dedupeResults(results, options?)` and an optional `{ deduplicate: true }` flag in `webSearch` and `webSearchStream`.
 
-### 3. Unified Freshness & News Search Mode
-*   **The Need:** Automated newsrooms require breaking/recent content (past 24h) rather than evergreen documentation.
+### 3. Unified Freshness & News Search Mode - ✅ *Implemented in v4.2.0*
+*   **The Need:** Real-time information discovery requires breaking/recent content (past 24h) rather than evergreen documentation.
 *   **Implementation:**
-    *   Standardize `freshness: 'day' | 'week' | 'month' | 'year'` across providers (mapping to Brave `freshness`, Perplexity `searchRecencyFilter`, Google `dateRestrict`, Tavily `timeRange`, DuckDuckGo `df`).
-    *   Standardize `searchType: 'news' | 'web'` across supported providers (Brave, DuckDuckGo, Google, SerpAPI).
+    *   Standardize `freshness: 'day' | 'week' | 'month' | 'year'` across providers (mapping to Brave `freshness`, Perplexity `searchRecencyFilter`, Google `dateRestrict`, Tavily `timeRange`, DuckDuckGo `df`, SerpAPI `tbs: qdr:*`, Exa `start_published_date`, Parallel `after_date`).
+    *   Standardize `searchType: 'news' | 'web'` across supported providers (Brave, DuckDuckGo, Google, SerpAPI, Tavily).
 
-### 4. Domain Filtering & Spam Exclusion (`excludeDomains` / `includeDomains`)
-*   **The Need:** News pipelines frequently need to exclude content farms, paywalled domains, social media scrapers, or specific low-signal sites.
-*   **Implementation:** Add `excludeDomains: string[]` and `includeDomains: string[]` to `SearchQuery`. Providers pass native API filters where available, with base-class fallback filtering in `AbstractSearchProvider`.
+### 4. Domain Filtering (`excludeDomains` / `includeDomains`) - ✅ *Implemented in v4.2.0*
+*   **The Need:** Downstream pipelines frequently need to exclude content farms, low-signal domains, or focus on specific whitelist sources.
+*   **Implementation:** Add `excludeDomains: string[]` and `includeDomains: string[]` to `SearchQuery`. Providers pass native API filters where supported (Tavily, Exa, Perplexity, Google, Parallel), with deterministic fallback post-filtering in `AbstractSearchProvider`.
 
-### 5. Normalized Temporal Metadata (ISO 8601 Timestamps)
-*   **The Need:** Providers return published dates in disparate formats (relative text like "2 hours ago", epoch numbers, or unparsed strings), complicating sorting and recency scoring.
-*   **Implementation:** Parse and normalize `publishedDate` to guaranteed ISO 8601 UTC strings (`YYYY-MM-DDTHH:mm:ss.sssZ`) across all providers.
+### 5. Normalized Temporal Metadata (ISO 8601 Timestamps) - ✅ *Implemented in v4.2.0*
+*   **The Need:** Providers return published dates in disparate formats (relative strings like "2 hours ago", epoch integers, or unparsed date strings), complicating downstream sorting and recency scoring.
+*   **Implementation:** Parse and normalize `publishedDate` to guaranteed ISO 8601 UTC strings (`YYYY-MM-DDTHH:mm:ss.sssZ`) across all providers via `src/utils/date.ts`.
 
 ---
 
-## ⚡ Tier 2: Edge Cost Optimization & Content Hydration
-*Reducing API spend and feeding high-signal content into downstream AI summarizers.*
+## ⚡ Tier 2: Performance & Telemetry (Medium Priority)
+*Reducing API spend and surfacing provider health.*
 
-### 6. Pluggable Edge Caching (Cloudflare KV & Memory Store)
-*   **The Need:** Scheduled discovery jobs frequently evaluate similar queries across intervals. Caching responses on Cloudflare Workers edge nodes saves API budget.
+### 6. Pluggable Cache Interface (`SearchCacheStore`) - ✅ *Implemented in v4.2.0*
+*   **The Need:** Recurring scheduled queries evaluate similar terms within short intervals. Caching responses reduces latency and API costs.
 *   **Implementation:**
-    *   Define a lightweight `SearchCacheStore` interface (`get`, `set`, `has`).
-    *   Provide zero-dependency built-in adapters: `MemoryCacheStore` (LRU) and `CloudflareKvCacheStore`.
-    *   Per-provider or global TTL configuration.
+    *   Define a lean, provider-agnostic `SearchCacheStore` interface (`get`, `set`, `has`, `delete`).
+    *   Ship a zero-dependency in-memory LRU store (`MemoryCacheStore`) built-in.
+    *   Keep external storage (Cloudflare KV, Redis, Upstash) cleanly decoupled via the interface, allowing users to supply their own adapter without bloating the core bundle.
+    *   Support per-query and global TTL configuration via `cache?: boolean | { ttlMs?: number; key?: string }`.
 
-### 7. Content Hydration & Full Article Extraction
-*   **The Need:** 100-character search snippets are insufficient for accurate AI summarization and translation, forcing pipelines to guess or hallucinate.
-*   **Implementation:**
-    *   Optional `{ extractContent: true }` flag utilizing clean text extractors or external reader proxies (e.g., Jina Reader `r.jina.ai` / Firecrawl).
-    *   Populate `result.content` with clean, readable Markdown while preserving `result.snippet` for quick previews.
-
-### 8. Quota & Rate State Telemetry
-*   **The Need:** Pipelines tracking daily quotas across providers need visibility into remaining requests and usage.
-*   **Implementation:** Enrich `onResponse` and provider instances with quota telemetry (parsed from rate-limit response headers such as `x-ratelimit-remaining`, `retry-after`).
+### 7. Quota & Rate Limit Telemetry - ✅ *Implemented in v4.2.0*
+*   **The Need:** Multi-provider orchestrators need visibility into remaining requests and quota resets across providers.
+*   **Implementation:** Enrich `onResponse` callbacks and provider telemetry with normalized rate-limit metadata parsed from response headers (`x-ratelimit-remaining`, `retry-after`, `x-ratelimit-reset`, etc.) attached to `HttpError`, `RateLimitError`, and `ProviderHooks.onResponse`.
 
 ---
 
-## 🧠 Tier 3: Advanced Retrieval & Intelligence
-*Consensus scoring and multi-model agentic integration.*
+## 🧠 Tier 3: Advanced Retrieval (Selective & Non-Breaking)
+*Low-complexity consensus and low-latency consumption.*
 
-### 9. Reciprocal Rank Fusion (RRF) Cross-Engine Consensus
+### 8. Result Streaming (`webSearchStream`) - ✅ *Implemented in v4.2.0*
+*   **The Need:** High-latency search providers (e.g., LLM-augmented engines like Perplexity) can block faster providers (e.g., Brave).
+*   **Implementation:** Provide a lightweight `AsyncIterable<SearchResult>` yielding results as each provider resolves, with optional real-time deduplication across incoming provider result chunks.
+
+### 9. Reciprocal Rank Fusion Utility (RRF) - ✅ *Implemented in v4.2.0*
 *   **The Need:** When querying multiple engines concurrently, rank ordering should reflect consensus across diverse indices.
-*   **Implementation:**
-    $$RRF\_Score(d) = \sum_{p \in Providers} \frac{1}{k + rank(p, d)}$$
-    Merge and re-rank multi-provider results based on reciprocal rank scoring.
-
-### 10. Result Streaming (`webSearchStream`)
-*   **The Need:** High-latency search providers (e.g., Perplexity or deep scraping) block faster providers (e.g., Brave).
-*   **Implementation:** Provide an `AsyncIterable<SearchResult>` yielding results as each provider resolves so downstream processing (AI workflows, UI feeds) can start immediately.
-
-### 11. Search-to-LLM Prompt Formatting
-*   **The Need:** Converting search results into token-budgeted prompt blocks for LLMs.
-*   **Implementation:** Built-in formatter utility to convert `SearchResult[]` into clean XML (`<search_results>`) or Markdown blocks with token truncation options.
+*   **Implementation:** Expose an optional, pure utility function `reciprocalRankFusion(resultsLists: SearchResult[][], options?: { k?: number }): SearchResult[]`. Implements $RRF\_Score(d) = \sum \frac{1}{k + r_m(d)}$.
 
 ---
 
-## 🌐 Tier 4: Platform Neutrality & Ecosystem Tooling
-*Broader developer reach and ecosystem integration.*
+## 🌐 Tier 4: Ecosystem & Tooling (Downstream Packages)
+*Separate packages and platform verification.*
 
-### 12. Strict Edge Runtime Verification
+### 10. Strict Edge Runtime Verification - ✅ *Implemented in v4.2.0*
 *   Maintain zero-Node-dependency core verified across Cloudflare Workers, Vercel Edge, Bun, and Deno.
-*   Continuous integration smoke tests targeting Cloudflare Workerd / Miniflare environment.
+*   Continuous integration tests in `src/__tests__/edge.test.ts` verifying no Node-only module imports in the core bundle.
 
-### 13. Provider Expansion
-*   *News & General:* Bing Search API, You.com.
-*   *Academic & Domain:* PubMed, Semantic Scholar, GitHub Search.
-*   *Local:* Auto-discovery for self-hosted SearXNG instances.
+### 11. Provider Expansion - ✅ *Implemented in v4.2.0*
+*   *News & General:* Bing Web Search API (`bing`), You.com (`you`).
+*   *Academic & Domain:* PubMed (`pubmed`), Semantic Scholar (`semantic-scholar`), GitHub Search (`github`).
+*   *Self-Hosted:* Support custom SearXNG endpoints via explicit base URL configuration.
 
-### 14. Model Context Protocol (MCP) & Agent Adapters
-*   Expose a ready-to-run MCP server export (`@omnisearch/mcp`) for Claude Desktop, Cursor, and Antigravity.
-*   Standardized tool adapters for Vercel AI SDK (`tool({ ... })`) and Cloudflare Agents SDK.
+### 12. Separate Tooling Packages - ✅ *Implemented in v4.2.0*
+*   `@omnisearch/mcp`: Standalone Model Context Protocol server exposing OmniSearch tools (`web_search`, `news_search`) to Claude Desktop, Cursor, and agent runtimes. Located in `packages/mcp`.
+*   `@omnisearch/cli`: Lightweight command-line utility for interactive testing and shell scripts. Located in `packages/cli`.
 
-### 15. Standalone CLI Utility
-*   Provide an `omnisearch` CLI binary (e.g. `npx omnisearch "news query" --provider brave --freshness day --json`) for terminal querying and shell scripts.
+---
+
+## 🚫 Explicit Non-Goals
+
+To maintain high reliability, maintainability, and clean architectural boundaries, the following capabilities are explicitly out of scope for the core SDK:
+
+1. **Web Scraping & Full Content Extraction:** OmniSearch is a search discovery layer, not a web crawler or scraper. Extracting full DOM content, handling paywalls, bypassing anti-bot challenges, or running headless browsers belongs in dedicated extraction tools (e.g., Jina Reader, Firecrawl, Puppeteer).
+2. **LLM Prompt Formatting:** Formatting results into model-specific prompts (token budgeting, XML tags, conversational templates) belongs in LLM orchestration libraries (e.g., Vercel AI SDK, LangChain). OmniSearch provides clean, structured data objects.
+3. **Vector / Embedding Search & RAG Orchestration:** OmniSearch aggregates live web indices. Chunking, embedding generation, and vector index retrieval are the responsibility of dedicated vector databases and RAG pipelines.
+
+---
+
+## 🧪 Testing & Reliability Strategy
+
+*   **Mock Unit Tests:** Fast, deterministic Vitest suite mocking network transport via `src/utils/http.ts` for 100% offline verification in CI.
+*   **Contract Schema Tests:** Ensure provider responses validate against `SearchResultSchema` with all edge-case fields (null snippets, strange timestamps, empty result arrays).
+*   **Live Integration Smoke Tests:** Separate, opt-in suite running against real provider APIs with secrets enabled in CI on a nightly or manual schedule to proactively detect upstream schema drift.
+
+---
+
+## 📦 Versioning & Deprecation Policy
+
+*   **SemVer Compliance:** Strict adherence to Semantic Versioning (`MAJOR.MINOR.PATCH`).
+*   **Pre-1.0 Iteration:** Minor releases (`0.x.0`) may introduce breaking changes with explicit migration notes in release changelogs.
+*   **Post-1.0 Stability:** No breaking changes without a major version bump and at least one minor release cycle with deprecation warnings.

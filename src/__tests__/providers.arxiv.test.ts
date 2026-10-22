@@ -136,7 +136,7 @@ describe('createArxivProvider', () => {
     expect(results[0].title).toBe('Test Paper Title');
     expect(results[0].snippet).toBe('Abstract of the test paper');
     expect(results[0].url).toBe('http://arxiv.org/pdf/2305.00001v1');
-    expect(results[0].publishedDate).toBe('2023-05-01T00:00:00Z');
+    expect(results[0].publishedDate).toBe('2023-05-01T00:00:00.000Z');
     expect(results[0].provider).toBe('arxiv');
   });
 

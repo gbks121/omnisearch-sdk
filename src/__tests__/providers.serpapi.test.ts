@@ -98,7 +98,7 @@ describe('createSerpApiProvider', () => {
     expect(results[0].title).toBe('SerpAPI Result');
     expect(results[0].snippet).toBe('SerpAPI snippet content');
     expect(results[0].domain).toBe('example.com');
-    expect(results[0].publishedDate).toBe('2024-02-01');
+    expect(results[0].publishedDate).toBe('2024-02-01T00:00:00.000Z');
     expect(results[0].provider).toBe('serpapi');
   });
 

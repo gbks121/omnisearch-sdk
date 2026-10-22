@@ -1,3 +1,5 @@
+import type { RateLimitTelemetry } from '../types';
+
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
 
 export interface HttpRequestOptions {
@@ -7,7 +9,54 @@ export interface HttpRequestOptions {
   timeout?: number;
 }
 
+export function extractRateLimitTelemetry(headers?: Headers): RateLimitTelemetry | undefined {
+  if (!headers || typeof headers.get !== 'function') return undefined;
+
+  const getHeader = (names: string[]): string | null => {
+    for (const name of names) {
+      const val = headers.get(name);
+      if (val !== null && val !== undefined) return val;
+    }
+    return null;
+  };
+
+  const limitStr = getHeader(['x-ratelimit-limit', 'ratelimit-limit']);
+  const remainingStr = getHeader(['x-ratelimit-remaining', 'ratelimit-remaining']);
+  const resetStr = getHeader(['x-ratelimit-reset', 'ratelimit-reset']);
+  const retryAfterStr = getHeader(['retry-after']);
+
+  const limit = limitStr ? Number.parseInt(limitStr, 10) : undefined;
+  const remaining = remainingStr ? Number.parseInt(remainingStr, 10) : undefined;
+  const reset = resetStr ? Number.parseInt(resetStr, 10) : undefined;
+  const retryAfter = retryAfterStr ? Number.parseInt(retryAfterStr, 10) : undefined;
+
+  const validLimit = limit !== undefined && !Number.isNaN(limit) ? limit : undefined;
+  const validRemaining =
+    remaining !== undefined && !Number.isNaN(remaining) ? remaining : undefined;
+  const validReset = reset !== undefined && !Number.isNaN(reset) ? reset : undefined;
+  const validRetryAfter =
+    retryAfter !== undefined && !Number.isNaN(retryAfter) ? retryAfter : undefined;
+
+  if (
+    validLimit !== undefined ||
+    validRemaining !== undefined ||
+    validReset !== undefined ||
+    validRetryAfter !== undefined
+  ) {
+    return {
+      limit: validLimit,
+      remaining: validRemaining,
+      reset: validReset,
+      retryAfter: validRetryAfter,
+    };
+  }
+
+  return undefined;
+}
+
 export class HttpError extends Error {
+  public readonly telemetry?: RateLimitTelemetry;
+
   constructor(
     message: string,
     public readonly statusCode: number,
@@ -16,6 +65,9 @@ export class HttpError extends Error {
   ) {
     super(message);
     this.name = 'HttpError';
+    if (response?.headers) {
+      this.telemetry = extractRateLimitTelemetry(response.headers);
+    }
   }
 }
 

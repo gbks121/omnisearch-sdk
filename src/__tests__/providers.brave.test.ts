@@ -78,7 +78,7 @@ describe('createBraveProvider', () => {
     expect(results[0].title).toBe('Test Page');
     expect(results[0].snippet).toBe('Test description');
     expect(results[0].domain).toBe('example.com');
-    expect(results[0].publishedDate).toBe('2024-01-01');
+    expect(results[0].publishedDate).toBe('2024-01-01T00:00:00.000Z');
     expect(results[0].provider).toBe('brave');
   });
 

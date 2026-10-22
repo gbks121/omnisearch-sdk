@@ -2,15 +2,20 @@ import 'dotenv/config';
 import { describe, expect, it } from 'vitest';
 import {
   createArxivProvider,
+  createBingProvider,
   createBraveProvider,
   createDuckDuckGoProvider,
   createExaProvider,
+  createGithubProvider,
   createGoogleProvider,
   createParallelProvider,
   createPerplexityProvider,
+  createPubmedProvider,
   createSearXNGProvider,
+  createSemanticScholarProvider,
   createSerpApiProvider,
   createTavilyProvider,
+  createYouProvider,
 } from '../providers';
 
 const env = (key: string) => process.env[key];
@@ -115,4 +120,60 @@ describe('integration: real provider calls', () => {
     expect(results.length).toBeGreaterThan(0);
     console.log('[Parallel]', results[0]?.title);
   });
+
+  skipIfNo('BING_API_KEY')('Bing', async () => {
+    const provider = createBingProvider({ apiKey: env('BING_API_KEY')! });
+    const results = await provider.search({ query: QUERY, maxResults: 3 });
+    expect(results.length).toBeGreaterThan(0);
+    printResults('Bing', results);
+  });
+
+  skipIfNo('YOU_API_KEY')('You.com', async () => {
+    const provider = createYouProvider({ apiKey: env('YOU_API_KEY')! });
+    const results = await provider.search({ query: QUERY, maxResults: 3 });
+    expect(results.length).toBeGreaterThan(0);
+    printResults('You.com', results);
+  });
+
+  it('PubMed', async () => {
+    const provider = createPubmedProvider({
+      apiKey: env('PUBMED_API_KEY'),
+      timeout: 20000,
+    });
+    try {
+      const results = await provider.search({ query: 'CRISPR gene editing', maxResults: 3 });
+      expect(results.length).toBeGreaterThan(0);
+      printResults('PubMed', results);
+    } catch (error) {
+      console.log('[PubMed] skipped — API unavailable:', (error as Error).message);
+    }
+  }, 25_000);
+
+  it('Semantic Scholar', async () => {
+    const provider = createSemanticScholarProvider({
+      apiKey: env('SEMANTIC_SCHOLAR_API_KEY'),
+      timeout: 20000,
+    });
+    try {
+      const results = await provider.search({ query: 'Deep Learning', maxResults: 3 });
+      expect(results.length).toBeGreaterThan(0);
+      printResults('Semantic Scholar', results);
+    } catch (error) {
+      console.log('[Semantic Scholar] skipped — API unavailable:', (error as Error).message);
+    }
+  }, 25_000);
+
+  it('GitHub', async () => {
+    const provider = createGithubProvider({
+      token: env('GITHUB_TOKEN'),
+      timeout: 20000,
+    });
+    try {
+      const results = await provider.search({ query: 'typescript search sdk', maxResults: 3 });
+      expect(results.length).toBeGreaterThan(0);
+      printResults('GitHub', results);
+    } catch (error) {
+      console.log('[GitHub] skipped — API unavailable:', (error as Error).message);
+    }
+  }, 25_000);
 });

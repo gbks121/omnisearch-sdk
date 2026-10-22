@@ -139,6 +139,20 @@ export class BraveSearchProvider extends AbstractSearchProvider<BraveSearchConfi
       searchUrl.searchParams.append('safesearch', safeSearch);
     }
 
+    const freshness = options.freshness || options.recencyFilter;
+    if (freshness) {
+      const braveFreshnessMap: Record<string, string> = {
+        day: 'pd',
+        week: 'pw',
+        month: 'pm',
+        year: 'py',
+      };
+      const mapped = braveFreshnessMap[freshness];
+      if (mapped) {
+        searchUrl.searchParams.append('freshness', mapped);
+      }
+    }
+
     const headers = {
       Accept: 'application/json',
       'X-Subscription-Token': this.config.apiKey || '',

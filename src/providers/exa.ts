@@ -60,12 +60,33 @@ export class ExaSearchProvider extends AbstractSearchProvider<ExaConfig> {
 
     const clampedMaxResults = clampMaxResults(maxResults);
 
-    const requestBody = {
+    const requestBody: Record<string, unknown> = {
       query,
       max_results: clampedMaxResults,
       model: this.config.model || 'keyword',
       include_contents: this.config.includeContents || false,
     };
+
+    if (options.includeDomains && options.includeDomains.length > 0) {
+      requestBody.include_domains = options.includeDomains;
+    }
+    if (options.excludeDomains && options.excludeDomains.length > 0) {
+      requestBody.exclude_domains = options.excludeDomains;
+    }
+
+    const freshness = options.freshness || options.recencyFilter;
+    if (freshness) {
+      const now = Date.now();
+      const offsets: Record<string, number> = {
+        day: 24 * 60 * 60 * 1000,
+        week: 7 * 24 * 60 * 60 * 1000,
+        month: 30 * 24 * 60 * 60 * 1000,
+        year: 365 * 24 * 60 * 60 * 1000,
+      };
+      if (offsets[freshness]) {
+        requestBody.start_published_date = new Date(now - offsets[freshness]).toISOString();
+      }
+    }
 
     const baseUrl = this.config.baseUrl || DEFAULT_BASE_URL;
 

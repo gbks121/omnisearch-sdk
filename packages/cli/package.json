@@ -1,0 +1,23 @@
+{
+  "name": "@omnisearch/cli",
+  "version": "1.0.0",
+  "description": "Command-line interface for OmniSearch SDK",
+  "type": "module",
+  "bin": {
+    "omnisearch": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "dependencies": {
+    "omnisearch-sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.1",
+    "typescript": "~6.0.3"
+  }
+}

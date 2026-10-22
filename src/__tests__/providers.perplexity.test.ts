@@ -73,7 +73,7 @@ describe('createPerplexityProvider', () => {
     expect(results[0].title).toBe('Perplexity Result');
     expect(results[0].snippet).toBe('Perplexity snippet content');
     expect(results[0].domain).toBe('example.com');
-    expect(results[0].publishedDate).toBe('2024-02-15');
+    expect(results[0].publishedDate).toBe('2024-02-15T00:00:00.000Z');
     expect(results[0].provider).toBe('perplexity');
   });
 
@@ -81,7 +81,7 @@ describe('createPerplexityProvider', () => {
     mockFetch(200, samplePerplexityResponse);
     const provider = createPerplexityProvider({ apiKey: 'test-key' });
     const results = await provider.search({ query: 'test', retries: 0 });
-    expect(results[1].publishedDate).toBe('2024-01-10');
+    expect(results[1].publishedDate).toBe('2024-01-10T00:00:00.000Z');
   });
 
   it('returns empty array when no results', async () => {

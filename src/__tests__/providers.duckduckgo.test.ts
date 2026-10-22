@@ -200,7 +200,7 @@ describe('createDuckDuckGoProvider', () => {
       expect(results[0].title).toBe('News Article');
       expect(results[0].url).toBe('https://news.example.com/article');
       expect(results[0].snippet).toBe('News article body text');
-      expect(results[0].publishedDate).toBe('2024-01-15T10:00:00Z');
+      expect(results[0].publishedDate).toBe('2024-01-15T10:00:00.000Z');
       expect(results[0].provider).toBe('duckduckgo');
     });
 

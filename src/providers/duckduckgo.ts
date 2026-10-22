@@ -90,21 +90,21 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<DuckDuckGoC
   protected async doSearch(options: SearchQuery): Promise<SearchResult[]> {
     const { query, maxResults = 10, region = 'wt-wt', safeSearch = 'moderate', timeout } = options;
 
-    const effectiveSearchType =
-      (options.searchType as 'text' | 'images' | 'news') ||
-      (this.config.searchType as 'text' | 'images' | 'news') ||
-      'text';
+    const rawType = options.searchType || this.config.searchType || 'text';
+    const effectiveSearchType = rawType === 'web' ? 'text' : rawType;
 
     if (!query?.trim()) {
       throw new Error('DuckDuckGo search requires a query.');
     }
 
+    const freshness = options.freshness || options.recencyFilter;
+
     if (effectiveSearchType === 'images') {
       return await this.searchImages(query, region, safeSearch, maxResults, timeout);
     } else if (effectiveSearchType === 'news') {
-      return await this.searchNews(query, region, safeSearch, maxResults, timeout);
+      return await this.searchNews(query, region, safeSearch, maxResults, timeout, freshness);
     } else {
-      return await this.searchText(query, region, safeSearch, maxResults, timeout);
+      return await this.searchText(query, region, safeSearch, maxResults, timeout, freshness);
     }
   }
 
@@ -124,12 +124,18 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<DuckDuckGoC
     region: string,
     _safeSearch: string,
     maxResults: number,
-    timeout?: number
+    timeout?: number,
+    freshness?: string
   ): Promise<SearchResult[]> {
     const useLite = this.config.useLite || false;
     const baseUrl =
       this.config.baseUrl || (useLite ? DEFAULT_BASE_URLS.lite : DEFAULT_BASE_URLS.text);
-    const payload = new URLSearchParams({ q: query, b: '', kl: region }).toString();
+    const params: Record<string, string> = { q: query, b: '', kl: region };
+    if (freshness) {
+      const dfMap: Record<string, string> = { day: 'd', week: 'w', month: 'm', year: 'y' };
+      if (dfMap[freshness]) params.df = dfMap[freshness];
+    }
+    const payload = new URLSearchParams(params).toString();
 
     const response = await post<string>(baseUrl, payload, {
       headers: {
@@ -234,7 +240,8 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<DuckDuckGoC
     region: string,
     safeSearch: string,
     maxResults: number,
-    timeout?: number
+    timeout?: number,
+    freshness?: string
   ): Promise<SearchResult[]> {
     const baseUrl = this.config.baseUrl || DEFAULT_BASE_URLS.news;
 
@@ -254,6 +261,11 @@ export class DuckDuckGoSearchProvider extends AbstractSearchProvider<DuckDuckGoC
     searchUrl.searchParams.append('q', query);
     searchUrl.searchParams.append('vqd', vqd);
     searchUrl.searchParams.append('p', safesearchMapping[safeSearch.toLowerCase()] || '-1');
+
+    if (freshness) {
+      const dfMap: Record<string, string> = { day: 'd', week: 'w', month: 'm', year: 'y' };
+      if (dfMap[freshness]) searchUrl.searchParams.append('df', dfMap[freshness]);
+    }
 
     const response = await get<DuckDuckGoNewsResponse>(searchUrl.toString(), {
       headers: this.getHeaders(),

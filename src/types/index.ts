@@ -34,12 +34,17 @@ export abstract class SearchProviderError extends Error {
 
 export class RateLimitError extends SearchProviderError {
   readonly code = 'RATE_LIMIT' as const;
-  constructor(provider: string, options?: { statusCode?: number; cause?: Error }) {
+  readonly telemetry?: RateLimitTelemetry;
+  constructor(
+    provider: string,
+    options?: { statusCode?: number; cause?: Error; telemetry?: RateLimitTelemetry }
+  ) {
     const msg = options?.statusCode
       ? `${provider} search failed: rate limit exceeded (HTTP ${options.statusCode})`
       : `${provider} search failed: rate limit exceeded`;
     super(msg, provider, { ...options, retryable: true });
     this.name = 'RateLimitError';
+    this.telemetry = options?.telemetry;
   }
 }
 
@@ -90,10 +95,38 @@ export class NetworkError extends SearchProviderError {
   }
 }
 
+export interface RateLimitTelemetry {
+  limit?: number;
+  remaining?: number;
+  reset?: number;
+  retryAfter?: number;
+}
+
 export interface SearchHooks {
   onRequest?(provider: string, query: string): void;
-  onResponse?(provider: string, resultCount: number, durationMs: number): void;
+  onResponse?(
+    provider: string,
+    resultCount: number,
+    durationMs: number,
+    telemetry?: RateLimitTelemetry
+  ): void;
   onError?(provider: string, error: SearchProviderError): void;
+}
+
+export interface DedupeOptions {
+  stripQueryParams?: boolean;
+  stripTrackingParams?: boolean;
+  customTrackingParams?: string[];
+  stripWww?: boolean;
+  normalizeTrailingSlash?: boolean;
+}
+
+export interface SearchCacheStore {
+  get(key: string): Promise<SearchResult[] | undefined> | SearchResult[] | undefined;
+  set(key: string, value: SearchResult[], ttlMs?: number): Promise<void> | void;
+  has?(key: string): Promise<boolean> | boolean;
+  delete?(key: string): Promise<void> | void;
+  clear?(): Promise<void> | void;
 }
 
 export interface SearchQuery {
@@ -108,6 +141,11 @@ export interface SearchQuery {
   searchType?: 'web' | 'news' | 'text' | 'images';
   searchDepth?: 'basic' | 'comprehensive';
   recencyFilter?: 'day' | 'week' | 'month' | 'year';
+  freshness?: 'day' | 'week' | 'month' | 'year';
+  includeDomains?: string[];
+  excludeDomains?: string[];
+  cache?: boolean | SearchCacheStore;
+  cacheTtlMs?: number;
   hooks?: SearchHooks;
   [key: string]: unknown;
 }
@@ -118,6 +156,8 @@ export interface ProviderConfig {
   timeout?: number;
   throttleLimit?: number;
   throttleInterval?: number;
+  cache?: SearchCacheStore;
+  cacheTtlMs?: number;
   [key: string]: unknown;
 }
 
@@ -130,4 +170,6 @@ export interface SearchProvider<TConfig extends ProviderConfig = ProviderConfig>
 export interface WebSearchOptions extends SearchQuery {
   provider: SearchProvider[];
   concurrency?: number;
+  strategy?: 'parallel' | 'fallback' | 'race';
+  deduplicate?: boolean | DedupeOptions;
 }

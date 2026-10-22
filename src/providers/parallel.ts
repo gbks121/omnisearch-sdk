@@ -123,21 +123,34 @@ export class ParallelSearchProvider extends AbstractSearchProvider<ParallelConfi
       requestBody.excerpts = excerptSettings;
     }
 
-    if (
-      this.config.includeDomains?.length ||
-      this.config.excludeDomains?.length ||
-      this.config.afterDate ||
-      this.config.beforeDate
-    ) {
+    const includeDomains = options.includeDomains || this.config.includeDomains;
+    const excludeDomains = options.excludeDomains || this.config.excludeDomains;
+    let afterDate = this.config.afterDate;
+
+    const freshness = options.freshness || options.recencyFilter;
+    if (freshness) {
+      const now = Date.now();
+      const offsets: Record<string, number> = {
+        day: 24 * 60 * 60 * 1000,
+        week: 7 * 24 * 60 * 60 * 1000,
+        month: 30 * 24 * 60 * 60 * 1000,
+        year: 365 * 24 * 60 * 60 * 1000,
+      };
+      if (offsets[freshness]) {
+        afterDate = new Date(now - offsets[freshness]).toISOString();
+      }
+    }
+
+    if (includeDomains?.length || excludeDomains?.length || afterDate || this.config.beforeDate) {
       const sourcePolicy: SourcePolicy = {};
-      if (this.config.includeDomains?.length) {
-        sourcePolicy.include_domains = this.config.includeDomains;
+      if (includeDomains?.length) {
+        sourcePolicy.include_domains = includeDomains;
       }
-      if (this.config.excludeDomains?.length) {
-        sourcePolicy.exclude_domains = this.config.excludeDomains;
+      if (excludeDomains?.length) {
+        sourcePolicy.exclude_domains = excludeDomains;
       }
-      if (this.config.afterDate) {
-        sourcePolicy.after_date = this.config.afterDate;
+      if (afterDate) {
+        sourcePolicy.after_date = afterDate;
       }
       if (this.config.beforeDate) {
         sourcePolicy.before_date = this.config.beforeDate;

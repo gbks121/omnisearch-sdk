@@ -81,7 +81,7 @@ describe('createSearXNGProvider', () => {
     expect(results[0].title).toBe('SearXNG Result');
     expect(results[0].snippet).toBe('SearXNG content snippet');
     expect(results[0].domain).toBe('example.com');
-    expect(results[0].publishedDate).toBe('2024-01-01');
+    expect(results[0].publishedDate).toBe('2024-01-01T00:00:00.000Z');
     expect(results[0].provider).toBe('searxng');
   });
 

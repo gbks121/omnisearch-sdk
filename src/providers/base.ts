@@ -1,6 +1,7 @@
 import pRetry, { AbortError } from 'p-retry';
 import pThrottle from 'p-throttle';
 import pTimeout from 'p-timeout';
+import { generateCacheKey, MemoryCacheStore } from '../cache';
 import {
   NetworkError,
   ProviderApiError,
@@ -14,6 +15,7 @@ import {
   SearchValidationError,
   TimeoutError,
 } from '../types';
+import { extractDomain, normalizeIsoDate } from '../utils';
 import { HttpError } from '../utils/http';
 
 interface ExtendedAbortError extends AbortError {
@@ -26,6 +28,7 @@ export abstract class AbstractSearchProvider<TConfig extends ProviderConfig = Pr
   public abstract readonly name: string;
   public readonly config: TConfig;
   private throttledSearch?: (options: SearchQuery) => Promise<SearchResult[]>;
+  private static defaultCache = new MemoryCacheStore();
 
   protected get displayName(): string {
     return this.name.charAt(0).toUpperCase() + this.name.slice(1);
@@ -42,6 +45,24 @@ export abstract class AbstractSearchProvider<TConfig extends ProviderConfig = Pr
   }
 
   public async search(options: SearchQuery): Promise<SearchResult[]> {
+    const cacheEnabled =
+      options.cache !== undefined ? Boolean(options.cache) : Boolean(this.config.cache);
+    const cacheStore =
+      typeof options.cache === 'object'
+        ? options.cache
+        : typeof this.config.cache === 'object'
+          ? this.config.cache
+          : AbstractSearchProvider.defaultCache;
+    const cacheKey = cacheEnabled ? generateCacheKey(this.name, options) : '';
+
+    if (cacheEnabled && cacheStore) {
+      const cached = await cacheStore.get(cacheKey);
+      if (cached && cached.length > 0) {
+        options.hooks?.onResponse?.(this.name, cached.length, 0);
+        return cached;
+      }
+    }
+
     const retries = options.retries ?? 2;
     const timeout = options.timeout ?? this.config.timeout ?? 30000;
     const hooks = options.hooks;
@@ -95,13 +116,58 @@ export abstract class AbstractSearchProvider<TConfig extends ProviderConfig = Pr
       );
 
       const validated = this.validateResults(results);
-      hooks?.onResponse?.(this.name, validated.length, Date.now() - startTime);
-      return validated;
+      const filtered = this.filterByDomain(
+        validated,
+        options.includeDomains,
+        options.excludeDomains
+      );
+
+      if (cacheEnabled && cacheStore && filtered.length > 0) {
+        const ttlMs = options.cacheTtlMs ?? this.config.cacheTtlMs;
+        await cacheStore.set(cacheKey, filtered, ttlMs);
+      }
+
+      hooks?.onResponse?.(this.name, filtered.length, Date.now() - startTime);
+      return filtered;
     } catch (error) {
       const providerError = this.standardizeError(error);
       hooks?.onError?.(this.name, providerError);
       throw providerError;
     }
+  }
+
+  private filterByDomain(
+    results: SearchResult[],
+    includeDomains?: string[],
+    excludeDomains?: string[]
+  ): SearchResult[] {
+    if (!includeDomains?.length && !excludeDomains?.length) {
+      return results;
+    }
+
+    const normalizeHost = (h: string) =>
+      h
+        .toLowerCase()
+        .replace(/^www\./, '')
+        .trim();
+    const includes = includeDomains?.map(normalizeHost).filter(Boolean);
+    const excludes = excludeDomains?.map(normalizeHost).filter(Boolean);
+
+    return results.filter((result) => {
+      const host = normalizeHost(result.domain || extractDomain(result.url) || '');
+      if (!host) return true;
+
+      if (excludes && excludes.length > 0) {
+        const isExcluded = excludes.some((ex) => host === ex || host.endsWith(`.${ex}`));
+        if (isExcluded) return false;
+      }
+
+      if (includes && includes.length > 0) {
+        return includes.some((inc) => host === inc || host.endsWith(`.${inc}`));
+      }
+
+      return true;
+    });
   }
 
   private getThrottledSearch(): (options: SearchQuery) => Promise<SearchResult[]> {
@@ -130,7 +196,14 @@ export abstract class AbstractSearchProvider<TConfig extends ProviderConfig = Pr
     for (let i = 0; i < results.length; i++) {
       const parsed = SearchResultSchema.safeParse(results[i]);
       if (parsed.success) {
-        validated.push(parsed.data);
+        const item = parsed.data;
+        if (item.publishedDate) {
+          const normalizedDate = normalizeIsoDate(item.publishedDate);
+          if (normalizedDate) {
+            item.publishedDate = normalizedDate;
+          }
+        }
+        validated.push(item);
       } else {
         console.warn(
           `[@omnisearch] Provider ${this.name} returned invalid result at index ${i}: ${parsed.error.message}`,
@@ -182,7 +255,11 @@ export abstract class AbstractSearchProvider<TConfig extends ProviderConfig = Pr
       const errorMessage = httpErr.message || String(actualError);
 
       if (statusCode === 429) {
-        return new RateLimitError(provider, { statusCode, cause: httpErr });
+        return new RateLimitError(provider, {
+          statusCode,
+          cause: httpErr,
+          telemetry: httpErr.telemetry,
+        });
       }
 
       const troubleshooting =

@@ -107,6 +107,23 @@ export class SerpApiSearchProvider extends AbstractSearchProvider<SerpApiConfig>
     if (region) params.gl = region;
     if (safeSearch) params.safe = safeSearch;
 
+    if (options.searchType === 'news') {
+      params.tbm = 'nws';
+    }
+
+    const freshness = options.freshness || options.recencyFilter;
+    if (freshness) {
+      const qdrMap: Record<string, string> = {
+        day: 'qdr:d',
+        week: 'qdr:w',
+        month: 'qdr:m',
+        year: 'qdr:y',
+      };
+      if (qdrMap[freshness]) {
+        params.tbs = qdrMap[freshness];
+      }
+    }
+
     const baseUrl = this.config.baseUrl || DEFAULT_BASE_URL;
     const url = buildUrl(baseUrl, params);
 

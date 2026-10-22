@@ -79,7 +79,7 @@ describe('createExaProvider', () => {
     expect(results[0].title).toBe('Research Paper');
     expect(results[0].snippet).toBe('Abstract text here');
     expect(results[0].domain).toBe('papers.example.com');
-    expect(results[0].publishedDate).toBe('2024-01-15');
+    expect(results[0].publishedDate).toBe('2024-01-15T00:00:00.000Z');
     expect(results[0].provider).toBe('exa');
   });
 

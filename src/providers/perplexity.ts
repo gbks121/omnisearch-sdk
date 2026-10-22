@@ -90,7 +90,9 @@ export class PerplexitySearchProvider extends AbstractSearchProvider<PerplexityC
       requestBody.max_tokens = this.config.maxTokens;
     }
 
-    if (this.config.searchDomainFilter) {
+    if (options.includeDomains && options.includeDomains.length > 0) {
+      requestBody.search_domain_filter = options.includeDomains;
+    } else if (this.config.searchDomainFilter) {
       requestBody.search_domain_filter = this.config.searchDomainFilter;
     }
 
@@ -104,8 +106,9 @@ export class PerplexitySearchProvider extends AbstractSearchProvider<PerplexityC
       requestBody.country = this.config.country;
     }
 
-    if (this.config.searchRecencyFilter) {
-      requestBody.search_recency_filter = this.config.searchRecencyFilter;
+    const freshness = options.freshness || options.recencyFilter || this.config.searchRecencyFilter;
+    if (freshness) {
+      requestBody.search_recency_filter = freshness;
     }
 
     if (this.config.searchAfterDate) {

@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Command-line interface for OmniSearch SDK",
   "type": "module",
+  "license": "MIT",
   "bin": {
     "omnisearch": "./dist/index.js"
   },

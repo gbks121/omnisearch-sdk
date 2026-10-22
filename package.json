@@ -1,6 +1,6 @@
 {
   "name": "omnisearch-sdk",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "description": "TypeScript SDK for web search providers",
   "type": "module",
   "exports": {

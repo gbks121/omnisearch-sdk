@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Model Context Protocol server for OmniSearch SDK",
   "type": "module",
+  "license": "MIT",
   "bin": {
     "omnisearch-mcp": "./dist/index.js"
   },

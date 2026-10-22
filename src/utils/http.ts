@@ -35,7 +35,11 @@ export function extractRateLimitTelemetry(headers?: Headers): RateLimitTelemetry
     'ratelimit-remaining',
     'x-ratelimit-remaining-requests',
   ]);
-  const resetStr = getHeader(['x-ratelimit-reset', 'ratelimit-reset', 'x-ratelimit-reset-requests']);
+  const resetStr = getHeader([
+    'x-ratelimit-reset',
+    'ratelimit-reset',
+    'x-ratelimit-reset-requests',
+  ]);
   const retryAfterStr = getHeader(['retry-after']);
 
   const limit = limitStr ? Number.parseInt(limitStr, 10) : undefined;

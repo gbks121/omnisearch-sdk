@@ -149,6 +149,15 @@ export interface SearchQuery {
   cache?: boolean | SearchCacheStore;
   cacheTtlMs?: number;
   hooks?: SearchHooks;
+  /** Aborts in-flight provider HTTP requests when triggered. */
+  signal?: AbortSignal;
+  /** Give up retrying immediately when a 429 reports retryAfter above this many seconds (default: 5). */
+  maxRetryAfterSeconds?: number;
+  /**
+   * @internal Forwarded to the HTTP layer so AbstractSearchProvider can capture
+   * rate-limit telemetry from 2xx responses and attach it to hooks.onResponse.
+   */
+  onTelemetry?: (telemetry: RateLimitTelemetry | undefined) => void;
   [key: string]: unknown;
 }
 
@@ -160,6 +169,7 @@ export interface ProviderConfig {
   throttleInterval?: number;
   cache?: SearchCacheStore;
   cacheTtlMs?: number;
+  maxRetryAfterSeconds?: number;
   [key: string]: unknown;
 }
 

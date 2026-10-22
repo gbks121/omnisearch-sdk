@@ -7,6 +7,7 @@ import {
   ProviderApiError,
   type ProviderConfig,
   RateLimitError,
+  type RateLimitTelemetry,
   type SearchProvider,
   type SearchProviderError,
   type SearchQuery,
@@ -58,16 +59,20 @@ export abstract class AbstractSearchProvider<TConfig extends ProviderConfig = Pr
     if (cacheEnabled && cacheStore) {
       const cached = await cacheStore.get(cacheKey);
       if (cached && cached.length > 0) {
-        options.hooks?.onResponse?.(this.name, cached.length, 0);
+        options.hooks?.onResponse?.(this.name, cached.length, 0, { cached: true });
         return cached;
       }
     }
 
     const retries = options.retries ?? 2;
     const timeout = options.timeout ?? this.config.timeout ?? 30000;
+    const maxRetryAfterSeconds =
+      options.maxRetryAfterSeconds ?? this.config.maxRetryAfterSeconds ?? 5;
     const hooks = options.hooks;
     const query = options.query || '';
     const searchFn = this.getThrottledSearch();
+
+    let telemetry: RateLimitTelemetry | undefined;
 
     hooks?.onRequest?.(this.name, query);
     const startTime = Date.now();
@@ -76,7 +81,14 @@ export abstract class AbstractSearchProvider<TConfig extends ProviderConfig = Pr
       const results = await pRetry(
         async () => {
           try {
-            return await pTimeout(searchFn(options), {
+            const searchOptions: SearchQuery = {
+              ...options,
+              timeout,
+              onTelemetry: (t?: RateLimitTelemetry) => {
+                if (t) telemetry = t;
+              },
+            };
+            return await pTimeout(searchFn(searchOptions), {
               milliseconds: timeout,
               message: `Search timed out after ${timeout}ms`,
             });
@@ -96,7 +108,21 @@ export abstract class AbstractSearchProvider<TConfig extends ProviderConfig = Pr
               const statusCode = (error as Record<string, unknown>).statusCode as
                 | number
                 | undefined;
-              if (statusCode === 429 || (statusCode !== undefined && statusCode >= 500)) {
+              if (statusCode === 429) {
+                const errTelemetry = (error as HttpError).telemetry;
+                if (
+                  errTelemetry?.remaining === 0 ||
+                  (errTelemetry?.retryAfter !== undefined &&
+                    errTelemetry.retryAfter > maxRetryAfterSeconds)
+                ) {
+                  const abortErr = new AbortError(errorMessage) as ExtendedAbortError;
+                  abortErr.originalError =
+                    error instanceof Error ? error : new Error(String(error));
+                  throw abortErr;
+                }
+                throw error;
+              }
+              if (statusCode !== undefined && statusCode >= 500) {
                 throw error;
               }
               const abortErr = new AbortError(errorMessage) as ExtendedAbortError;
@@ -116,10 +142,14 @@ export abstract class AbstractSearchProvider<TConfig extends ProviderConfig = Pr
       );
 
       const validated = this.validateResults(results);
-      const filtered = this.filterByDomain(
+      const domainFiltered = this.filterByDomain(
         validated,
         options.includeDomains,
         options.excludeDomains
+      );
+      const filtered = this.filterByFreshness(
+        domainFiltered,
+        options.freshness ?? options.recencyFilter
       );
 
       if (cacheEnabled && cacheStore && filtered.length > 0) {
@@ -127,7 +157,12 @@ export abstract class AbstractSearchProvider<TConfig extends ProviderConfig = Pr
         await cacheStore.set(cacheKey, filtered, ttlMs);
       }
 
-      hooks?.onResponse?.(this.name, filtered.length, Date.now() - startTime);
+      hooks?.onResponse?.(
+        this.name,
+        filtered.length,
+        Date.now() - startTime,
+        telemetry ? { ...telemetry, cached: false } : undefined
+      );
       return filtered;
     } catch (error) {
       const providerError = this.standardizeError(error);
@@ -170,6 +205,33 @@ export abstract class AbstractSearchProvider<TConfig extends ProviderConfig = Pr
     });
   }
 
+  private static readonly FRESHNESS_OFFSET_MS: Record<'day' | 'week' | 'month' | 'year', number> = {
+    day: 24 * 60 * 60 * 1000,
+    week: 7 * 24 * 60 * 60 * 1000,
+    month: 30 * 24 * 60 * 60 * 1000,
+    year: 365 * 24 * 60 * 60 * 1000,
+  };
+
+  private filterByFreshness(
+    results: SearchResult[],
+    freshness?: 'day' | 'week' | 'month' | 'year'
+  ): SearchResult[] {
+    if (!freshness) return results;
+
+    const offsetMs = AbstractSearchProvider.FRESHNESS_OFFSET_MS[freshness];
+    if (!offsetMs) return results;
+
+    const clockSkewGraceMs = 60 * 60 * 1000;
+    const cutoffMs = Date.now() - offsetMs - clockSkewGraceMs;
+
+    return results.filter((result) => {
+      if (!result.publishedDate) return true;
+      const publishedMs = Date.parse(result.publishedDate);
+      if (Number.isNaN(publishedMs)) return true;
+      return publishedMs >= cutoffMs;
+    });
+  }
+
   private getThrottledSearch(): (options: SearchQuery) => Promise<SearchResult[]> {
     if (this.throttledSearch) return this.throttledSearch;
 
@@ -198,10 +260,7 @@ export abstract class AbstractSearchProvider<TConfig extends ProviderConfig = Pr
       if (parsed.success) {
         const item = parsed.data;
         if (item.publishedDate) {
-          const normalizedDate = normalizeIsoDate(item.publishedDate);
-          if (normalizedDate) {
-            item.publishedDate = normalizedDate;
-          }
+          item.publishedDate = normalizeIsoDate(item.publishedDate);
         }
         validated.push(item);
       } else {

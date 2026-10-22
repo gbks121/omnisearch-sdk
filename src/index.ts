@@ -1,12 +1,48 @@
 import pMap from 'p-map';
+import { AbstractSearchProvider } from './providers/base';
 import {
   type DedupeOptions,
   ProviderApiError,
+  type SearchHooks,
   SearchProviderError,
+  type SearchQuery,
   type SearchResult,
   type WebSearchOptions,
 } from './types';
 import { dedupeResults, normalizeUrl } from './utils/url';
+
+function toProviderError(provider: string, err: unknown): SearchProviderError {
+  return err instanceof SearchProviderError
+    ? err
+    : new ProviderApiError(provider, err instanceof Error ? err.message : String(err));
+}
+
+/**
+ * Runs one provider and guarantees lifecycle hooks fire exactly once:
+ * AbstractSearchProvider implementations own onRequest/onResponse/onError via
+ * the hooks passed into search(); plain SearchProvider implementations get
+ * manual fallback firing from here.
+ */
+async function invokeProvider(
+  p: { name: string; search(options: SearchQuery): Promise<SearchResult[]> },
+  searchOptions: SearchQuery,
+  hooks?: SearchHooks
+): Promise<SearchResult[]> {
+  if (p instanceof AbstractSearchProvider) {
+    return p.search({ ...searchOptions, hooks });
+  }
+
+  hooks?.onRequest?.(p.name, searchOptions.query || '');
+  const startTime = Date.now();
+  try {
+    const results = await p.search({ ...searchOptions });
+    hooks?.onResponse?.(p.name, results.length, Date.now() - startTime);
+    return results;
+  } catch (err) {
+    hooks?.onError?.(p.name, toProviderError(p.name, err));
+    throw err;
+  }
+}
 
 export async function webSearch(options: WebSearchOptions): Promise<SearchResult[]> {
   const {
@@ -22,31 +58,21 @@ export async function webSearch(options: WebSearchOptions): Promise<SearchResult
     throw new Error('At least one search provider is required');
   }
 
-  const query = searchOptions.query || '';
   let finalResults: SearchResult[] = [];
 
   if (strategy === 'fallback') {
     const errors: string[] = [];
 
     for (const p of provider) {
-      hooks?.onRequest?.(p.name, query);
-      const startTime = Date.now();
-
       try {
-        const results = await p.search({ ...searchOptions });
-        hooks?.onResponse?.(p.name, results.length, Date.now() - startTime);
+        const results = await invokeProvider(p, searchOptions, hooks);
 
         if (results.length > 0) {
           finalResults = results;
           break;
         }
       } catch (err) {
-        const error =
-          err instanceof SearchProviderError
-            ? err
-            : new ProviderApiError(p.name, err instanceof Error ? err.message : String(err));
-        hooks?.onError?.(p.name, error);
-        errors.push(error.message);
+        errors.push(toProviderError(p.name, err).message);
       }
     }
 
@@ -61,12 +87,8 @@ export async function webSearch(options: WebSearchOptions): Promise<SearchResult
       let resolved = false;
 
       for (const p of provider) {
-        hooks?.onRequest?.(p.name, query);
-        const startTime = Date.now();
-
-        p.search({ ...searchOptions })
+        invokeProvider(p, searchOptions, hooks)
           .then((results) => {
-            hooks?.onResponse?.(p.name, results.length, Date.now() - startTime);
             if (!resolved && results.length > 0) {
               resolved = true;
               resolve(results);
@@ -86,12 +108,7 @@ export async function webSearch(options: WebSearchOptions): Promise<SearchResult
             }
           })
           .catch((err) => {
-            const error =
-              err instanceof SearchProviderError
-                ? err
-                : new ProviderApiError(p.name, err instanceof Error ? err.message : String(err));
-            hooks?.onError?.(p.name, error);
-            errors.push(error.message);
+            errors.push(toProviderError(p.name, err).message);
             remaining--;
             if (remaining === 0 && !resolved) {
               if (errors.length === provider.length) {
@@ -110,20 +127,15 @@ export async function webSearch(options: WebSearchOptions): Promise<SearchResult
     const searchResults = await pMap(
       provider,
       async (p) => {
-        hooks?.onRequest?.(p.name, query);
-        const startTime = Date.now();
-
         try {
-          const results = await p.search({ ...searchOptions });
-          hooks?.onResponse?.(p.name, results.length, Date.now() - startTime);
+          const results = await invokeProvider(p, searchOptions, hooks);
           return { provider: p.name, results, error: null as SearchProviderError | null };
         } catch (err) {
-          const error =
-            err instanceof SearchProviderError
-              ? err
-              : new ProviderApiError(p.name, err instanceof Error ? err.message : String(err));
-          hooks?.onError?.(p.name, error);
-          return { provider: p.name, results: [] as SearchResult[], error };
+          return {
+            provider: p.name,
+            results: [] as SearchResult[],
+            error: toProviderError(p.name, err),
+          };
         }
       },
       { concurrency }
@@ -165,7 +177,6 @@ export async function* webSearchStream(
     throw new Error('At least one search provider is required');
   }
 
-  const query = searchOptions.query || '';
   const dedupeOpts: DedupeOptions | undefined =
     typeof deduplicate === 'object' ? deduplicate : undefined;
   const seenUrls = new Set<string>();
@@ -183,20 +194,11 @@ export async function* webSearchStream(
   pMap(
     provider,
     async (p) => {
-      hooks?.onRequest?.(p.name, query);
-      const startTime = Date.now();
-
       try {
-        const results = await p.search({ ...searchOptions });
-        hooks?.onResponse?.(p.name, results.length, Date.now() - startTime);
+        const results = await invokeProvider(p, searchOptions, hooks);
         queue.push({ provider: p.name, results, error: null });
       } catch (err) {
-        const error =
-          err instanceof SearchProviderError
-            ? err
-            : new ProviderApiError(p.name, err instanceof Error ? err.message : String(err));
-        hooks?.onError?.(p.name, error);
-        queue.push({ provider: p.name, results: [], error });
+        queue.push({ provider: p.name, results: [], error: toProviderError(p.name, err) });
       } finally {
         pending--;
         if (notifyNext) {

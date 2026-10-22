@@ -178,7 +178,7 @@ describe('AbstractSearchProvider Resilience Features', () => {
     await provider.search({ query: 'test', retries: 0, hooks: { onRequest, onResponse } });
 
     expect(onRequest).toHaveBeenCalledWith('test', 'test');
-    expect(onResponse).toHaveBeenCalledWith('test', 1, expect.any(Number));
+    expect(onResponse).toHaveBeenCalledWith('test', 1, expect.any(Number), undefined);
   });
 
   it('should call onError hook on failure', async () => {

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { generateCacheKey, MemoryCacheStore } from '../cache';
+import { describe, expect, it, vi } from 'vitest';
+import { createKvCacheStore, generateCacheKey, KvCacheStore, MemoryCacheStore } from '../cache';
 import { AbstractSearchProvider } from '../providers/base';
 import type { ProviderConfig, SearchQuery, SearchResult } from '../types';
 
@@ -116,5 +116,171 @@ describe('Provider caching integration', () => {
     const res2 = await provider.search({ query: 'hello', cache: true });
     expect(res2).toEqual(res1);
     expect(provider.searchCount).toBe(1); // Cached! No extra doSearch call
+  });
+});
+
+function createMockKv() {
+  const store = new Map<string, string>();
+  let lastPutOptions: { expirationTtl?: number } | undefined;
+  const kv = {
+    store,
+    get lastPutOptions() {
+      return lastPutOptions;
+    },
+    get: vi.fn(async (key: string): Promise<string | null> => store.get(key) ?? null),
+    put: vi.fn(
+      async (key: string, value: string, options?: { expirationTtl?: number }): Promise<void> => {
+        store.set(key, value);
+        lastPutOptions = options;
+      }
+    ),
+    delete: vi.fn(async (key: string): Promise<void> => {
+      store.delete(key);
+    }),
+  };
+  return kv;
+}
+
+describe('KvCacheStore', () => {
+  const sampleResults: SearchResult[] = [
+    { url: 'https://example.com', title: 'Example', provider: 'kv-test' },
+  ];
+
+  it('reads and writes serialized SearchResult[] through the KV binding', async () => {
+    const kv = createMockKv();
+    const cache = new KvCacheStore(kv);
+
+    await cache.set('key1', sampleResults, 120_000);
+    expect(kv.put).toHaveBeenCalledTimes(1);
+
+    const read = await cache.get('key1');
+    expect(read).toEqual(sampleResults);
+  });
+
+  it('prefixes and compacts keys deterministically under the default prefix', async () => {
+    const kv = createMockKv();
+    const cache = new KvCacheStore(kv);
+
+    await cache.set(generateCacheKey('google', { query: 'a' }), sampleResults);
+    await cache.set(generateCacheKey('google', { query: 'a' }), sampleResults);
+
+    const putKey = kv.put.mock.calls[0][0];
+    expect(putKey.startsWith('omnisearch:cache:v1:')).toBe(true);
+    expect(putKey.length).toBeLessThanOrEqual(512);
+    expect(kv.put.mock.calls[1][0]).toBe(putKey);
+
+    const otherKey = kv.put.mock.calls[0][0];
+    await cache.set(generateCacheKey('brave', { query: 'a' }), sampleResults);
+    expect(kv.put.mock.calls[2][0]).not.toBe(otherKey);
+  });
+
+  it('respects a custom keyPrefix', async () => {
+    const kv = createMockKv();
+    const cache = new KvCacheStore(kv, { keyPrefix: 'myapp:' });
+
+    await cache.set('key1', sampleResults);
+
+    expect(kv.put.mock.calls[0][0].startsWith('myapp:')).toBe(true);
+  });
+
+  it('clamps sub-60s TTLs to expirationTtl of 60 seconds', async () => {
+    const kv = createMockKv();
+    const cache = new KvCacheStore(kv);
+
+    await cache.set('key1', sampleResults, 5_000);
+
+    expect(kv.lastPutOptions?.expirationTtl).toBe(60);
+  });
+
+  it('converts millisecond TTLs to whole seconds', async () => {
+    const kv = createMockKv();
+    const cache = new KvCacheStore(kv);
+
+    await cache.set('key1', sampleResults, 300_000);
+
+    expect(kv.lastPutOptions?.expirationTtl).toBe(300);
+  });
+
+  it('uses defaultTtlMs when no TTL is provided', async () => {
+    const kv = createMockKv();
+    const cache = new KvCacheStore(kv, { defaultTtlMs: 120_000 });
+
+    await cache.set('key1', sampleResults);
+
+    expect(kv.lastPutOptions?.expirationTtl).toBe(120);
+  });
+
+  it('fails open on corrupt JSON', async () => {
+    const kv = createMockKv();
+    kv.store.set('omnisearch:cache:v1:deadbeef', 'not json');
+    const cache = new KvCacheStore(kv);
+
+    expect(await cache.get('anything')).toBeUndefined();
+  });
+
+  it('fails open when KV get rejects', async () => {
+    const kv = createMockKv();
+    kv.get = vi.fn(async () => {
+      throw new Error('KV unavailable');
+    });
+    const cache = new KvCacheStore(kv);
+
+    expect(await cache.get('key1')).toBeUndefined();
+  });
+
+  it('fails open when KV put rejects', async () => {
+    const kv = createMockKv();
+    kv.put = vi.fn(async () => {
+      throw new Error('KV write failed');
+    });
+    const cache = new KvCacheStore(kv);
+
+    await expect(cache.set('key1', sampleResults)).resolves.toBeUndefined();
+  });
+
+  it('returns undefined for missing keys and non-array payloads', async () => {
+    const kv = createMockKv();
+    const cache = new KvCacheStore(kv);
+
+    expect(await cache.get('missing')).toBeUndefined();
+
+    await cache.set('key1', sampleResults);
+    const storedKey = kv.put.mock.calls[0][0];
+    kv.store.set(storedKey, JSON.stringify({ no: 'array' }));
+
+    expect(await cache.get('key1')).toBeUndefined();
+  });
+
+  it('deletes keys through the KV binding when available', async () => {
+    const kv = createMockKv();
+    const cache = new KvCacheStore(kv);
+
+    await cache.set('key1', sampleResults);
+    await cache.delete('key1');
+
+    expect(await cache.get('key1')).toBeUndefined();
+    expect(kv.delete).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports { cached: true } in onResponse on KV cache hits when wired to a provider', async () => {
+    const kv = createMockKv();
+    const cache = createKvCacheStore(kv);
+    const provider = new MockSearchProvider({ cache });
+
+    const onResponse = vi.fn();
+    await provider.search({ query: 'kv', hooks: { onResponse } });
+    expect(provider.searchCount).toBe(1);
+
+    onResponse.mockClear();
+    await provider.search({ query: 'kv', hooks: { onResponse } });
+
+    expect(provider.searchCount).toBe(1);
+    expect(onResponse).toHaveBeenCalledWith('cached-test', 1, 0, { cached: true });
+  });
+
+  it('exposes createKvCacheStore factory', () => {
+    const kv = createMockKv();
+    const cache = createKvCacheStore(kv);
+    expect(cache).toBeInstanceOf(KvCacheStore);
   });
 });

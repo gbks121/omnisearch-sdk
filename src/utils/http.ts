@@ -7,6 +7,11 @@ export interface HttpRequestOptions {
   headers?: Record<string, string>;
   body?: unknown;
   timeout?: number;
+  signal?: AbortSignal;
+  /** Maximum response body size in bytes (default: 5 MB). */
+  maxResponseBytes?: number;
+  /** Invoked on 2xx responses with rate-limit telemetry extracted from response headers. */
+  onTelemetry?: (telemetry: RateLimitTelemetry | undefined) => void;
 }
 
 export function extractRateLimitTelemetry(headers?: Headers): RateLimitTelemetry | undefined {
@@ -20,9 +25,17 @@ export function extractRateLimitTelemetry(headers?: Headers): RateLimitTelemetry
     return null;
   };
 
-  const limitStr = getHeader(['x-ratelimit-limit', 'ratelimit-limit']);
-  const remainingStr = getHeader(['x-ratelimit-remaining', 'ratelimit-remaining']);
-  const resetStr = getHeader(['x-ratelimit-reset', 'ratelimit-reset']);
+  const limitStr = getHeader([
+    'x-ratelimit-limit',
+    'ratelimit-limit',
+    'x-ratelimit-limit-requests',
+  ]);
+  const remainingStr = getHeader([
+    'x-ratelimit-remaining',
+    'ratelimit-remaining',
+    'x-ratelimit-remaining-requests',
+  ]);
+  const resetStr = getHeader(['x-ratelimit-reset', 'ratelimit-reset', 'x-ratelimit-reset-requests']);
   const retryAfterStr = getHeader(['retry-after']);
 
   const limit = limitStr ? Number.parseInt(limitStr, 10) : undefined;
@@ -72,21 +85,89 @@ export class HttpError extends Error {
 }
 
 const DEFAULT_TIMEOUT = 15000;
+const DEFAULT_MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+
+async function readBoundedText(response: Response, maxBytes: number): Promise<string> {
+  const headers = response.headers;
+  const contentLengthHeader =
+    headers && typeof headers.get === 'function' ? headers.get('content-length') : null;
+  if (contentLengthHeader) {
+    const contentLength = Number.parseInt(contentLengthHeader, 10);
+    if (!Number.isNaN(contentLength) && contentLength > maxBytes) {
+      throw new HttpError(
+        `Response body exceeded maximum allowed size (${maxBytes} bytes)`,
+        413,
+        response
+      );
+    }
+  }
+
+  const body = response.body;
+  if (!body || typeof body.getReader !== 'function') {
+    return response.text();
+  }
+
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let received = 0;
+  let text = '';
+
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      received += value.byteLength;
+      if (received > maxBytes) {
+        try {
+          await reader.cancel();
+        } catch {
+          // Stream may already be closed
+        }
+        throw new HttpError(
+          `Response body exceeded maximum allowed size (${maxBytes} bytes)`,
+          413,
+          response
+        );
+      }
+      text += decoder.decode(value, { stream: true });
+    }
+    text += decoder.decode();
+  } catch (error) {
+    try {
+      await reader.cancel();
+    } catch {
+      // Stream may already be closed
+    }
+    throw error;
+  }
+
+  return text;
+}
 
 export async function makeRequest<T>(url: string, options: HttpRequestOptions = {}): Promise<T> {
-  const { method = 'GET', headers = {}, body, timeout = DEFAULT_TIMEOUT } = options;
+  const {
+    method = 'GET',
+    headers = {},
+    body,
+    timeout = DEFAULT_TIMEOUT,
+    maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
+  } = options;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeout);
 
   try {
+    const signal = options.signal
+      ? AbortSignal.any([controller.signal, options.signal])
+      : controller.signal;
+
     const requestOptions: RequestInit = {
       method,
       headers: {
         Accept: 'application/json',
         ...headers,
       },
-      signal: controller.signal,
+      signal,
     };
 
     if (body && method !== 'GET') {
@@ -138,33 +219,36 @@ export async function makeRequest<T>(url: string, options: HttpRequestOptions = 
       throw new HttpError(message, response.status, response, responseBody);
     }
 
+    options.onTelemetry?.(extractRateLimitTelemetry(response.headers));
+
     const contentType =
       response.headers && typeof response.headers.get === 'function'
         ? (response.headers.get('content-type') ?? '')
         : '';
 
+    const bodyText = await readBoundedText(response, maxResponseBytes);
+
     if (contentType.includes('application/json')) {
-      return (await response.json()) as T;
-    } else {
-      const text = await response.text();
-      try {
-        if (
-          typeof text === 'string' &&
-          (text.trim().startsWith('{') || text.trim().startsWith('['))
-        ) {
-          return JSON.parse(text) as T;
-        }
-      } catch {
-        // Fallback to text
-      }
-      return text as unknown as T;
+      return JSON.parse(bodyText) as T;
     }
+    try {
+      const trimmed = bodyText.trim();
+      if (typeof bodyText === 'string' && (trimmed.startsWith('{') || trimmed.startsWith('['))) {
+        return JSON.parse(bodyText) as T;
+      }
+    } catch {
+      // Fallback to text
+    }
+    return bodyText as unknown as T;
   } catch (error) {
     if (error instanceof HttpError) throw error;
-    if (error instanceof Error) {
-      if (error.name === 'AbortError') {
-        throw new Error(`Request timed out after ${timeout}ms`);
+    if ((error as { name?: string } | null)?.name === 'AbortError') {
+      if (options.signal?.aborted) {
+        throw error;
       }
+      throw new Error(`Request timed out after ${timeout}ms`);
+    }
+    if (error instanceof Error) {
       throw error;
     }
     throw new Error(String(error));

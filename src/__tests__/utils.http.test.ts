@@ -240,3 +240,159 @@ describe('post', () => {
     );
   });
 });
+
+describe('makeRequest telemetry, abort, and bounded reads', () => {
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('extracts rate-limit telemetry from 200 OK responses via onTelemetry', async () => {
+    const headers = new Headers({
+      'x-ratelimit-limit': '100',
+      'x-ratelimit-remaining': '42',
+      'x-ratelimit-reset': '1774350000',
+    });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers,
+      text: vi.fn().mockResolvedValue(JSON.stringify({ ok: true })),
+      json: vi.fn().mockResolvedValue({ ok: true }),
+    } as unknown as Response);
+
+    const onTelemetry = vi.fn();
+    const result = await makeRequest<{ ok: boolean }>('https://example.com/api', { onTelemetry });
+
+    expect(result).toEqual({ ok: true });
+    expect(onTelemetry).toHaveBeenCalledTimes(1);
+    expect(onTelemetry).toHaveBeenCalledWith({
+      limit: 100,
+      remaining: 42,
+      reset: 1774350000,
+      retryAfter: undefined,
+    });
+  });
+
+  it('parses vendor -requests rate-limit header variants', async () => {
+    const headers = new Headers({
+      'x-ratelimit-limit-requests': '60',
+      'x-ratelimit-remaining-requests': '3',
+      'x-ratelimit-reset-requests': '1774350000',
+    });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers,
+      text: vi.fn().mockResolvedValue(JSON.stringify({ ok: true })),
+      json: vi.fn().mockResolvedValue({ ok: true }),
+    } as unknown as Response);
+
+    const onTelemetry = vi.fn();
+    await makeRequest('https://example.com/api', { onTelemetry });
+
+    expect(onTelemetry).toHaveBeenCalledWith({
+      limit: 60,
+      remaining: 3,
+      reset: 1774350000,
+      retryAfter: undefined,
+    });
+  });
+
+  it('aborts an in-flight fetch when the external signal aborts', async () => {
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener('abort', () => {
+            const abortError = new Error('The operation was aborted');
+            abortError.name = 'AbortError';
+            reject(abortError);
+          });
+        })
+    );
+
+    const controller = new AbortController();
+    const promise = makeRequest('https://example.com/slow', { signal: controller.signal });
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    controller.abort();
+
+    try {
+      await promise;
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect((error as Error).name).toBe('AbortError');
+      expect((error as Error).message).not.toContain('timed out');
+    }
+  });
+
+  it('throws HttpError 413 when Content-Length exceeds maxResponseBytes', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-type': 'text/plain', 'content-length': '100' }),
+      text: vi.fn(),
+    } as unknown as Response);
+
+    try {
+      await makeRequest('https://example.com/huge', { maxResponseBytes: 10 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect(error).toBeInstanceOf(HttpError);
+      expect((error as HttpError).statusCode).toBe(413);
+      expect((error as HttpError).message).toContain('exceeded maximum allowed size');
+    }
+  });
+
+  it('throws HttpError 413 when streamed body exceeds maxResponseBytes', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('a'.repeat(100)));
+        controller.close();
+      },
+    });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-type': 'text/plain' }),
+      body,
+    } as unknown as Response);
+
+    try {
+      await makeRequest('https://example.com/huge', { maxResponseBytes: 10 });
+      expect.unreachable('Should have thrown');
+    } catch (error) {
+      expect(error).toBeInstanceOf(HttpError);
+      expect((error as HttpError).statusCode).toBe(413);
+    }
+  });
+
+  it('returns full body when stream is within maxResponseBytes', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('hello'));
+        controller.close();
+      },
+    });
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-type': 'text/plain' }),
+      body,
+    } as unknown as Response);
+
+    const result = await makeRequest<string>('https://example.com/ok', { maxResponseBytes: 100 });
+    expect(result).toBe('hello');
+  });
+});

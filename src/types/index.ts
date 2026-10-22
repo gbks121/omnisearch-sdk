@@ -100,6 +100,8 @@ export interface RateLimitTelemetry {
   remaining?: number;
   reset?: number;
   retryAfter?: number;
+  /** True when the result was served from SearchCacheStore without an HTTP request. */
+  cached?: boolean;
 }
 
 export interface SearchHooks {

@@ -7,6 +7,9 @@
   "bin": {
     "omnisearch-mcp": "./dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch"

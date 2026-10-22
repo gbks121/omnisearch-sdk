@@ -84,6 +84,28 @@ describe('webSearchStream', () => {
     expect(streamed[0].provider).toBe('p1');
   });
 
+  it('should write the canonical URL back onto streamed items when deduplicating', async () => {
+    const tracked: SearchResult = {
+      url: 'https://example.com/article?utm_source=twitter&id=9',
+      title: 'Article',
+      provider: 'p1',
+    };
+
+    const p1 = createMockProvider('p1', [tracked], 5);
+
+    const streamed: SearchResult[] = [];
+    for await (const result of webSearchStream({
+      query: 'test',
+      provider: [p1],
+      deduplicate: true,
+    })) {
+      streamed.push(result);
+    }
+
+    expect(streamed).toHaveLength(1);
+    expect(streamed[0].url).toBe('https://example.com/article?id=9');
+  });
+
   it('should throw if all streaming providers fail', async () => {
     const p1 = createMockProvider('p1', [], 10, true);
     const p2 = createMockProvider('p2', [], 10, true);

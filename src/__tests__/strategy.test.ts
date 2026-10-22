@@ -123,6 +123,50 @@ describe('webSearch strategies', () => {
       expect(results).toHaveLength(1);
       expect(results[0].title).toBe('Result 2');
     });
+
+    it('should abort slower providers once the winner resolves', async () => {
+      const capturedSignals: AbortSignal[] = [];
+      let slowAborted = false;
+
+      const fastProvider: SearchProvider = {
+        name: 'fast',
+        config: {},
+        search: vi.fn(async () => {
+          await new Promise((r) => setTimeout(r, 20));
+          return [sampleResult2];
+        }),
+      };
+
+      const slowProvider: SearchProvider = {
+        name: 'slow',
+        config: {},
+        search: vi.fn(async (opts) => {
+          capturedSignals.push(opts.signal as AbortSignal);
+          await new Promise<void>((resolve) => {
+            const safety = setTimeout(resolve, 5000);
+            (opts.signal as AbortSignal).addEventListener('abort', () => {
+              clearTimeout(safety);
+              slowAborted = true;
+              resolve();
+            });
+          });
+          return [];
+        }),
+      };
+
+      const start = Date.now();
+      const results = await webSearch({
+        query: 'test',
+        provider: [slowProvider, fastProvider],
+        strategy: 'race',
+      });
+
+      expect(results).toEqual([sampleResult2]);
+      expect(results[0].title).toBe('Result 2');
+      expect(slowAborted).toBe(true);
+      expect(capturedSignals[0]?.aborted).toBe(true);
+      expect(Date.now() - start).toBeLessThan(3000);
+    });
   });
 
   describe('deduplication flag in webSearch', () => {

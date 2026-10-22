@@ -80,4 +80,23 @@ describe('dedupeResults', () => {
     expect(deduped[0].provider).toBe('brave');
     expect(deduped[1].provider).toBe('tavily');
   });
+
+  it('should write the canonical URL back onto returned items', () => {
+    const results: SearchResult[] = [
+      {
+        url: 'https://example.com/article?utm_source=twitter&fbclid=abc123&id=9',
+        title: 'Tracked URL',
+        provider: 'brave',
+      },
+      {
+        url: 'not a valid url',
+        title: 'Unparseable URL',
+        provider: 'tavily',
+      },
+    ];
+
+    const deduped = dedupeResults(results);
+    expect(deduped[0].url).toBe('https://example.com/article?id=9');
+    expect(deduped[1].url).toBe('not a valid url');
+  });
 });

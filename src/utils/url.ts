@@ -94,7 +94,7 @@ export function dedupeResults(results: SearchResult[], options?: DedupeOptions):
 
     if (!seen.has(key)) {
       seen.add(key);
-      deduped.push(item);
+      deduped.push(normalized ? { ...item, url: normalized } : item);
     }
   }
 

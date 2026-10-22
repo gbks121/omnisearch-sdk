@@ -83,14 +83,21 @@ export async function webSearch(options: WebSearchOptions): Promise<SearchResult
     const errors: string[] = [];
     let remaining = provider.length;
 
+    const raceController = new AbortController();
+    const callerSignal = searchOptions.signal;
+    const raceSignal = callerSignal
+      ? AbortSignal.any([callerSignal, raceController.signal])
+      : raceController.signal;
+
     finalResults = await new Promise<SearchResult[]>((resolve, reject) => {
       let resolved = false;
 
       for (const p of provider) {
-        invokeProvider(p, searchOptions, hooks)
+        invokeProvider(p, { ...searchOptions, signal: raceSignal }, hooks)
           .then((results) => {
             if (!resolved && results.length > 0) {
               resolved = true;
+              raceController.abort();
               resolve(results);
             } else {
               remaining--;
@@ -108,6 +115,10 @@ export async function webSearch(options: WebSearchOptions): Promise<SearchResult
             }
           })
           .catch((err) => {
+            if (resolved) {
+              // Losing providers aborted by the race are not failures.
+              return;
+            }
             errors.push(toProviderError(p.name, err).message);
             remaining--;
             if (remaining === 0 && !resolved) {
@@ -233,9 +244,12 @@ export async function* webSearchStream(
               continue;
             }
             seenUrls.add(key);
+            yieldedCount++;
+            yield canonical ? { ...item, url: canonical } : item;
+          } else {
+            yieldedCount++;
+            yield item;
           }
-          yieldedCount++;
-          yield item;
         }
       }
     }

@@ -6,6 +6,7 @@ try {
 } catch {
   // Ignore if no .env file is present
 }
+
 import {
   createArxivProvider,
   createBingProvider,
@@ -83,8 +84,7 @@ function resolveProviders(providerName?: string): SearchProvider[] {
       env.SEARXNG_URL || env.SEARXNG_BASE_URL
         ? createSearXNGProvider({ baseUrl: (env.SEARXNG_URL || env.SEARXNG_BASE_URL)! })
         : null,
-    semanticscholar: () =>
-      createSemanticScholarProvider({ apiKey: env.SEMANTIC_SCHOLAR_API_KEY }),
+    semanticscholar: () => createSemanticScholarProvider({ apiKey: env.SEMANTIC_SCHOLAR_API_KEY }),
   };
 
   if (name) {

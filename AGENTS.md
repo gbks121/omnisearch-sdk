@@ -37,6 +37,7 @@ This project is a high-performance TypeScript SDK for aggregating web search res
 - **Standardized Output:** Ensure all providers return `SearchResult[]` conforming to `SearchResultSchema` with guaranteed ISO 8601 UTC dates.
 - **Type Safety:** Maintain strict TypeScript types. Avoid `any` where possible.
 - **Zero Bloat in Core:** Do not add Node-only native dependencies or heavy CLI/MCP libraries to the root SDK; keep them in `packages/`.
+- **Release Notes:** Pushing a Git tag does not auto-create a GitHub Release. Always publish notes via `gh release create <tag>`.
 
 ## 🧪 Commands
 - `pnpm test`: Run all unit tests (`vitest run`).
@@ -47,3 +48,5 @@ This project is a high-performance TypeScript SDK for aggregating web search res
 - `pnpm run format`: Format code with Biome.
 - `pnpm run check`: Run Biome formatter, linter, and import sorting.
 - `pnpm run build`: Build ESM, CJS, and TypeScript definitions with `tsup`.
+- `gh release create <tag> -t "<title>" --notes "<notes>"`: Publish GitHub release notes after pushing a tag.
+
